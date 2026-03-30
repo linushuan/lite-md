@@ -1,6 +1,6 @@
 # mded
 
-mded is a lightweight Markdown editor for Linux.
+mded is a lightweight Markdown editor for Linux, macOS, and Windows.
 It focuses on fast typing, syntax highlighting, and clean reading while editing.
 
 ## What You Can Do
@@ -13,20 +13,51 @@ It focuses on fast typing, syntax highlighting, and clean reading while editing.
 
 ## Quick Start
 
+### Linux
+
 Build and run from source:
 
 ```bash
-mkdir -p build
-cd build
-cmake ..
-cmake --build . -j$(nproc)
-./mded
+cmake -S . -B build
+cmake --build build -j$(nproc)
+./build/mded
 ```
 
 Open files directly:
 
 ```bash
-./mded notes.md todo.md
+./build/mded notes.md todo.md
+```
+
+### macOS
+
+Install dependencies (Homebrew example):
+
+```bash
+brew install cmake qt
+```
+
+Build:
+
+```bash
+cmake -S . -B build -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
+cmake --build build -j$(sysctl -n hw.ncpu)
+```
+
+Run:
+
+```bash
+open build/mded.app
+```
+
+### Windows
+
+Install Qt 6 and CMake, then build from a Developer PowerShell:
+
+```powershell
+cmake -S . -B build -DCMAKE_PREFIX_PATH="C:/Qt/6.8.0/msvc2022_64"
+cmake --build build --config Release
+./build/Release/mded.exe
 ```
 
 ## Shortcuts
@@ -54,7 +85,9 @@ Open files directly:
 
 User settings are saved at:
 
-`~/.config/mded/config.toml`
+- Linux (typical): `~/.config/mded/config.toml`
+- macOS (typical): `~/Library/Preferences/mded/config.toml`
+- Windows (typical): `%LOCALAPPDATA%\\mded\\config.toml`
 
 ## Acknowledgements
 

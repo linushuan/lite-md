@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(mded VERSION 0.2.0 LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -29,7 +31,20 @@ set(SOURCES
     src/util/TomlParser.cpp
 )
 
-add_executable(mded ${SOURCES})
+if(APPLE)
+    add_executable(mded MACOSX_BUNDLE ${SOURCES})
+elseif(WIN32)
+    add_executable(mded WIN32 ${SOURCES})
+else()
+    add_executable(mded ${SOURCES})
+endif()
+
+qt_add_resources(mded "mded_themes"
+    PREFIX "/themes"
+    FILES
+        themes/dark.toml
+        themes/white.toml
+)
 
 target_include_directories(mded PRIVATE src)
 
@@ -39,10 +54,19 @@ target_link_libraries(mded PRIVATE
     Qt6::Gui
 )
 
-target_compile_options(mded PRIVATE
-    -Wall -Wextra -Wpedantic
-    $<$<CONFIG:Release>:-O2>
-)
+if(MSVC)
+    target_compile_options(mded PRIVATE
+        /W4
+        /permissive-
+        /utf-8
+        $<$<CONFIG:Release>:/O2>
+    )
+else()
+    target_compile_options(mded PRIVATE
+        -Wall -Wextra -Wpedantic
+        $<$<CONFIG:Release>:-O2>
+    )
+endif()
 
 # Tests
 option(BUILD_TESTS "Build test suite" ON)
@@ -53,6 +77,12 @@ if(BUILD_TESTS)
 endif()
 
 # Install
-install(TARGETS mded RUNTIME DESTINATION bin)
-install(DIRECTORY themes DESTINATION share/mded)
-install(FILES mded.desktop DESTINATION share/applications)
+install(TARGETS mded
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+install(DIRECTORY themes DESTINATION ${CMAKE_INSTALL_DATADIR}/mded)
+
+if(UNIX AND NOT APPLE)
+    install(FILES mded.desktop DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
+endif()
