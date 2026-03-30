@@ -78,7 +78,7 @@ cmake --build build --config Release
 
 ## Themes
 
-- Use the toolbar button `Theme: ...` to switch between dark and white.
+- Use the toolbar theme icon button to switch between dark and white.
 - Theme files are stored in [themes](themes).
 
 ## Config File
