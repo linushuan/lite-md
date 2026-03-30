@@ -22,6 +22,8 @@
 #include <QToolBar>
 #include <QAction>
 #include <QStyle>
+#include <QPainter>
+#include <QPainterPath>
 
 namespace {
 QIcon themeIcon(bool dark)
@@ -37,6 +39,55 @@ QIcon themeIcon(bool dark)
         }
     }
     return QIcon();
+}
+
+QIcon themeToggleLineIcon()
+{
+    const QStringList names = {
+        "color-select-symbolic",
+        "applications-graphics-symbolic",
+        "preferences-desktop-theme-symbolic",
+        "applications-graphics",
+        "preferences-desktop-theme"
+    };
+
+    for (const QString &name : names) {
+        const QIcon icon = QIcon::fromTheme(name);
+        if (!icon.isNull()) {
+            return icon;
+        }
+    }
+
+    QPixmap pix(18, 18);
+    pix.fill(Qt::transparent);
+
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing, true);
+
+    QPen pen(QColor("#6b7280"));
+    pen.setWidthF(1.5);
+    pen.setCapStyle(Qt::RoundCap);
+    pen.setJoinStyle(Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+
+    QPainterPath palette;
+    palette.moveTo(9.0, 2.0);
+    palette.cubicTo(4.5, 2.0, 2.0, 4.8, 2.0, 8.8);
+    palette.cubicTo(2.0, 12.8, 5.1, 16.0, 8.9, 16.0);
+    palette.lineTo(10.6, 16.0);
+    palette.cubicTo(11.5, 16.0, 12.2, 15.3, 12.2, 14.4);
+    palette.cubicTo(12.2, 13.5, 12.9, 12.8, 13.8, 12.8);
+    palette.lineTo(14.7, 12.8);
+    palette.cubicTo(16.9, 12.8, 18.0, 11.3, 18.0, 9.5);
+    palette.cubicTo(18.0, 5.6, 14.8, 2.0, 9.0, 2.0);
+    p.drawPath(palette);
+
+    p.drawEllipse(QPointF(6.0, 7.0), 0.7, 0.7);
+    p.drawEllipse(QPointF(8.8, 5.5), 0.7, 0.7);
+    p.drawEllipse(QPointF(11.6, 6.4), 0.7, 0.7);
+
+    return QIcon(pix);
 }
 }
 
@@ -378,8 +429,7 @@ void MainWindow::refreshStatusBar()
 
     if (themeToggleAction_) {
         const QString nextTheme = (theme == "white") ? "dark" : "white";
-        const QIcon nextThemeIcon = themeIcon(nextTheme == "dark");
-        themeToggleAction_->setIcon(nextThemeIcon);
+        themeToggleAction_->setIcon(themeToggleLineIcon());
         themeToggleAction_->setText(QString());
         themeToggleAction_->setToolTip(nextTheme == "dark" ? "Switch to dark theme" : "Switch to light theme");
     }

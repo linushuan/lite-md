@@ -11,13 +11,26 @@
 #include <QMessageBox>
 #include <QFileInfo>
 
+namespace {
+QString normalizeThemeName(const QString &theme)
+{
+    if (theme == "white" || theme == "dark") {
+        return theme;
+    }
+    if (theme == "light") {
+        return QString("white");
+    }
+    return QString("dark");
+}
+}
+
 TabManager::TabManager(QWidget *parent)
     : QWidget(parent)
 {
     const Settings settings = Settings::load();
     defaultFontSize_ = qMax(6, settings.fontSize);
     globalFontSize_ = defaultFontSize_;
-    themeName_ = settings.theme;
+    themeName_ = normalizeThemeName(settings.theme);
 
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -361,7 +374,7 @@ int TabManager::globalFontSize() const
 
 void TabManager::setThemeName(const QString &themeName)
 {
-    themeName_ = themeName;
+    themeName_ = normalizeThemeName(themeName);
     for (int i = 0; i < count(); ++i) {
         if (auto *editor = editorAt(i)) {
             editor->editor()->setThemeName(themeName_);

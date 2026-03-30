@@ -50,5 +50,4 @@ struct Theme {
 
     static Theme fromToml(const QString &path);
     static Theme darkDefault();
-    static Theme lightDefault();
 };

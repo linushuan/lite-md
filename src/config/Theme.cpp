@@ -55,57 +55,6 @@ Theme Theme::darkDefault()
     return t;
 }
 
-Theme Theme::lightDefault()
-{
-    Theme t;
-    t.name = "light";
-
-    t.background      = QColor("#f8fafc");
-    t.foreground      = QColor("#243447");
-    t.currentLineBg   = QColor("#edf2f7");
-    t.lineNumberFg    = QColor("#8a9aab");
-    t.lineNumberBg    = QColor("#f2f6fa");
-    t.selectionBg     = QColor("#bfd7ff");
-    t.selectionFg     = QColor("#132235");
-    t.cursorColor     = QColor("#0b7285");
-    t.searchHighlightBg = QColor("#ffe08a77");
-
-    t.heading[0] = QColor("#c92a2a");
-    t.heading[1] = QColor("#1864ab");
-    t.heading[2] = QColor("#0b7285");
-    t.heading[3] = QColor("#2b8a3e");
-    t.heading[4] = QColor("#e67700");
-    t.heading[5] = QColor("#9c36b5");
-
-    t.codeInlineFg    = QColor("#d9480f");
-    t.codeInlineBg    = QColor("#fff1e6");
-    t.codeFenceFg     = QColor("#9a3412");
-    t.codeFenceBg     = QColor("#00000000");
-    t.codeFenceLangFg = QColor("#2f9e44");
-
-    t.blockquoteFg       = QColor("#5b6b7d");
-    t.blockquoteBorderFg = QColor("#8ca3bc");
-    t.listBulletFg       = QColor("#1971c2");
-    t.linkTextFg         = QColor("#0f766e");
-    t.linkUrlFg          = QColor("#1d4ed8");
-    t.imageFg            = QColor("#c2410c");
-    t.boldFg             = QColor("#15283b");
-    t.italicFg           = QColor("#2f9e44");
-    t.strikeFg           = QColor("#9aa7b6");
-    t.tablePipeFg        = QColor("#5c83c7");
-    t.hrFg               = QColor("#aab9ca");
-    t.markerFg           = QColor("#8697ab");
-    t.hardBreakFg        = QColor("#9c36b5");
-
-    t.latexDelimiterFg = QColor("#0b7285");
-    t.latexCommandFg   = QColor("#d6336c");
-    t.latexBraceFg     = QColor("#e67700");
-    t.latexMathBodyFg  = QColor("#8d2b0b");
-    t.latexEnvNameFg   = QColor("#2b8a3e");
-
-    return t;
-}
-
 Theme Theme::fromToml(const QString &path)
 {
     Theme fallback = darkDefault();
