@@ -1,0 +1,47 @@
+name = "light"
+
+background     = "#eff1f5"
+foreground     = "#4c4f69"
+currentLineBg  = "#e6e9f0"
+lineNumberFg   = "#acaec4"
+lineNumberBg   = "#eff1f5"
+selectionBg    = "#acaec4"
+cursorColor    = "#8839ef"
+searchHighlightBg = "#df8e1d44"
+
+[heading]
+h1 = "#8839ef"
+h2 = "#1e66f5"
+h3 = "#04a5e5"
+h4 = "#40a02b"
+h5 = "#df8e1d"
+h6 = "#fe640b"
+
+[code]
+inlineFg  = "#d20f39"
+inlineBg  = "#f0e0e0"
+fenceFg   = "#4c4f69"
+fenceBg   = "#e6e9f0"
+langFg    = "#40a02b"
+
+[block]
+blockquoteFg     = "#9ca0b0"
+blockquoteBorder = "#acaec4"
+listBullet       = "#1e66f5"
+linkText         = "#1e66f5"
+linkUrl          = "#acaec4"
+image            = "#40a02b"
+bold             = "#4c4f69"
+italic           = "#4c4f69"
+strike           = "#acaec4"
+tablePipe        = "#ccd0da"
+hr               = "#ccd0da"
+marker           = "#ccd0da"
+hardBreak        = "#9ca0b0"
+
+[latex]
+delimiter  = "#179299"
+command    = "#04a5e5"
+brace      = "#209fb5"
+mathBody   = "#4c4f69"
+envName    = "#179299"

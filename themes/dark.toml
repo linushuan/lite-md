@@ -1,0 +1,47 @@
+name = "dark"
+
+background     = "#1e1e2e"
+foreground     = "#cdd6f4"
+currentLineBg  = "#2a2a3e"
+lineNumberFg   = "#585b70"
+lineNumberBg   = "#1e1e2e"
+selectionBg    = "#45475a"
+cursorColor    = "#f5c2e7"
+searchHighlightBg = "#f9e2af44"
+
+[heading]
+h1 = "#cba6f7"
+h2 = "#89b4fa"
+h3 = "#74c7ec"
+h4 = "#a6e3a1"
+h5 = "#f9e2af"
+h6 = "#fab387"
+
+[code]
+inlineFg  = "#f38ba8"
+inlineBg  = "#2a1a1a"
+fenceFg   = "#cdd6f4"
+fenceBg   = "#181825"
+langFg    = "#a6e3a1"
+
+[block]
+blockquoteFg     = "#6c7086"
+blockquoteBorder = "#585b70"
+listBullet       = "#89b4fa"
+linkText         = "#89b4fa"
+linkUrl          = "#585b70"
+image            = "#a6e3a1"
+bold             = "#cdd6f4"
+italic           = "#cdd6f4"
+strike           = "#585b70"
+tablePipe        = "#45475a"
+hr               = "#45475a"
+marker           = "#45475a"
+hardBreak        = "#6c7086"
+
+[latex]
+delimiter  = "#94e2d5"
+command    = "#89dceb"
+brace      = "#74c7ec"
+mathBody   = "#cdd6f4"
+envName    = "#94e2d5"

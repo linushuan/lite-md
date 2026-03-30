@@ -1,0 +1,48 @@
+# Build artifacts
+/build/
+/build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+Makefile
+CTestTestfile.cmake
+Testing/
+
+# Qt auto-generated files
+*_autogen/
+*.moc
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+
+# Binaries and libraries
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+mded
+
+# Test output
+*.gcda
+*.gcno
+*.gcov
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# docs
+spec.md
