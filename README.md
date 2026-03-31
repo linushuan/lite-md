@@ -6,7 +6,7 @@ It focuses on fast typing, syntax highlighting, and clean reading while editing.
 ## What You Can Do
 
 - Edit Markdown with multi-tab workflow.
-- Highlight Markdown, code fences, tables, links/images, and LaTeX.
+- Highlight Markdown, HTML-style comments, code fences, tables, links/images, and LaTeX.
 - Use dark/white theme toggle from the toolbar.
 - Auto-continue list items on Enter (bullets, numbers, checkboxes).
 - Save files with standard keyboard shortcuts.
@@ -60,6 +60,39 @@ cmake -S . -B build -DCMAKE_PREFIX_PATH="C:/Qt/6.8.0/msvc2022_64"
 cmake --build build --config Release
 ./build/Release/miter.exe
 ```
+
+## Packaging (macOS / Windows)
+
+Run packaging on the target OS (you cannot build a runnable macOS package on Linux, and vice versa).
+
+### macOS package
+
+```bash
+cd ~/linus/coding/vibe-coding/lite-md
+./scripts/package-macos.sh
+```
+
+This produces a `.dmg` package in the build directory (default: `build-macos/`).
+
+### Windows package (PowerShell)
+
+```powershell
+cd ~\linus\coding\vibe-coding\lite-md
+powershell -ExecutionPolicy Bypass -File .\scripts\package-windows.ps1
+```
+
+This produces a `.zip` package in the build directory (default: `build-win\`).
+
+## Install / Update In `~/` (Linux)
+
+Use this for first install and for every later update:
+
+```bash
+cd ~/linus/coding/vibe-coding/lite-md
+./scripts/update-local.sh
+```
+
+Default install target is `~/.local`.
 
 ## Shortcuts
 

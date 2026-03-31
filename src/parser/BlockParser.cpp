@@ -117,12 +117,67 @@ BlockType BlockParser::classify(const QString &text, ContextStack &ctx, QVector<
         return BlockType::LatexEnvBody;
     }
 
+    // 4. Continue HTML comment block
+    if (ctx.topState() == BlockState::HtmlComment) {
+        const ContextFrame frame = ctx.top();
+        const PrefixInfo prefix = parseContainerPrefix(text, frame.depth, frame.listIndent > 0);
+        const int contentOffset = prefix.contentOffset;
+        const QString content = text.mid(contentOffset);
+        const int contentLen = static_cast<int>(content.length());
+
+        appendContainerMarkers(prefix);
+
+        const int closePos = content.indexOf("-->");
+        if (closePos >= 0) {
+            tokens.append({contentOffset, closePos + 3, TokenType::HtmlComment});
+            ctx.pop();
+        } else {
+            tokens.append({contentOffset, contentLen, TokenType::HtmlComment});
+        }
+        return BlockType::HtmlComment;
+    }
+
     const PrefixInfo prefix = parseContainerPrefix(text, -1, true);
     const int contentOffset = prefix.contentOffset;
     const QString content = text.mid(contentOffset);
     const int contentLen = static_cast<int>(content.length());
 
-    // 4. ATX Heading
+    int firstNonSpace = 0;
+    while (firstNonSpace < contentLen && content[firstNonSpace].isSpace()) {
+        firstNonSpace++;
+    }
+
+    // HTML-style comment block start (supports multiline until -->).
+    if (firstNonSpace + 3 < contentLen &&
+        content[firstNonSpace] == '<' &&
+        content[firstNonSpace + 1] == '!' &&
+        content[firstNonSpace + 2] == '-' &&
+        content[firstNonSpace + 3] == '-') {
+        appendContainerMarkers(prefix);
+
+        const int closePos = content.indexOf("-->", firstNonSpace + 4);
+        if (closePos >= 0) {
+            tokens.append({
+                contentOffset + firstNonSpace,
+                closePos + 3 - firstNonSpace,
+                TokenType::HtmlComment
+            });
+        } else {
+            tokens.append({
+                contentOffset + firstNonSpace,
+                contentLen - firstNonSpace,
+                TokenType::HtmlComment
+            });
+            ContextFrame frame;
+            frame.state = BlockState::HtmlComment;
+            frame.depth = prefix.blockquoteDepth;
+            frame.listIndent = prefix.hasList ? (prefix.listEnd - prefix.listStart) : 0;
+            ctx.push(frame);
+        }
+        return BlockType::HtmlComment;
+    }
+
+    // 5. ATX Heading
     int level, contentStart, contentEnd;
     if (matchATXHeading(content, level, contentStart, contentEnd)) {
         appendContainerMarkers(prefix);
@@ -135,7 +190,7 @@ BlockType BlockParser::classify(const QString &text, ContextStack &ctx, QVector<
         return BlockType::Heading;
     }
 
-    // 5. CodeFence start
+    // 6. CodeFence start
     QChar fenceChar;
     int fenceLen, indent;
     QString lang;
@@ -159,7 +214,7 @@ BlockType BlockParser::classify(const QString &text, ContextStack &ctx, QVector<
         return BlockType::CodeFenceStart;
     }
 
-    // 6. $$ display LaTeX start
+    // 7. $$ display LaTeX start
     static QRegularExpression singleLineDisplayRe(R"(^\s*(\$\$)\s*(.+?)\s*(\$\$)\s*$)");
     auto displayMatch = singleLineDisplayRe.match(content);
     if (displayMatch.hasMatch()) {
@@ -191,7 +246,7 @@ BlockType BlockParser::classify(const QString &text, ContextStack &ctx, QVector<
         return BlockType::LatexDisplayStart;
     }
 
-    // 7. \begin{env} LaTeX env start
+    // 8. \begin{env} LaTeX env start
     static QRegularExpression beginRe(R"(^\s*\\begin\{(\w+)\})");
     auto beginMatch = beginRe.match(content);
     if (beginMatch.hasMatch()) {
@@ -206,7 +261,7 @@ BlockType BlockParser::classify(const QString &text, ContextStack &ctx, QVector<
         return BlockType::LatexEnvStart;
     }
 
-    // 8. Table
+    // 9. Table
     if (matchTable(content)) {
         appendContainerMarkers(prefix);
         // Tokenize pipe characters
@@ -218,19 +273,19 @@ BlockType BlockParser::classify(const QString &text, ContextStack &ctx, QVector<
         return BlockType::Table;
     }
 
-    // 9. Horizontal rule
+    // 10. Horizontal rule
     if (matchHR(content)) {
         appendContainerMarkers(prefix);
         tokens.append({contentOffset, contentLen, TokenType::HR});
         return BlockType::HR;
     }
 
-    // 10. Blank line (non-container)
+    // 11. Blank line (non-container)
     if (content.trimmed().isEmpty() && prefix.blockquoteDepth == 0 && !prefix.hasList) {
         return BlockType::BlankLine;
     }
 
-    // 11. Blockquote / list fallback
+    // 12. Blockquote / list fallback
     if (prefix.hasList) {
         appendContainerMarkers(prefix);
         tokens.append({contentOffset, textLen - contentOffset, TokenType::ListBody});
@@ -243,7 +298,7 @@ BlockType BlockParser::classify(const QString &text, ContextStack &ctx, QVector<
         return BlockType::Blockquote;
     }
 
-    // 12. Normal paragraph
+    // 13. Normal paragraph
     return BlockType::Normal;
 }
 

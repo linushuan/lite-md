@@ -285,6 +285,32 @@ private slots:
         // 4+ spaces before ``` is not a fence
         QCOMPARE(BlockParser::classify("    ```", ctx, tokens), BlockType::Normal);
     }
+
+    void testHtmlCommentSingleLine()
+    {
+        ContextStack ctx;
+        QVector<BlockToken> tokens;
+
+        QCOMPARE(BlockParser::classify("<!-- hidden -->", ctx, tokens), BlockType::HtmlComment);
+        QVERIFY(!tokens.isEmpty());
+        QCOMPARE(tokens[0].type, TokenType::HtmlComment);
+        QCOMPARE(ctx.topState(), BlockState::Normal);
+    }
+
+    void testHtmlCommentMultiline()
+    {
+        ContextStack ctx;
+        QVector<BlockToken> tokens;
+
+        QCOMPARE(BlockParser::classify("<!--", ctx, tokens), BlockType::HtmlComment);
+        QCOMPARE(ctx.topState(), BlockState::HtmlComment);
+
+        QCOMPARE(BlockParser::classify("still hidden", ctx, tokens), BlockType::HtmlComment);
+        QCOMPARE(ctx.topState(), BlockState::HtmlComment);
+
+        QCOMPARE(BlockParser::classify("-->", ctx, tokens), BlockType::HtmlComment);
+        QCOMPARE(ctx.topState(), BlockState::Normal);
+    }
 };
 
 QTEST_MAIN(TestBlockParser)

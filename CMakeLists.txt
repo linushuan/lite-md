@@ -46,6 +46,12 @@ qt_add_resources(miter "miter_themes"
         themes/white.toml
 )
 
+qt_add_resources(miter "miter_icons"
+    PREFIX "/icons"
+    FILES
+        assets/icons/miter.svg
+)
+
 target_include_directories(miter PRIVATE src)
 
 target_link_libraries(miter PRIVATE
@@ -83,6 +89,34 @@ install(TARGETS miter
 )
 install(DIRECTORY themes DESTINATION ${CMAKE_INSTALL_DATADIR}/miter)
 
+if((APPLE OR WIN32) AND COMMAND qt_generate_deploy_app_script)
+    qt_generate_deploy_app_script(
+        TARGET miter
+        OUTPUT_SCRIPT miter_deploy_script
+        NO_UNSUPPORTED_PLATFORM_ERROR
+    )
+    install(SCRIPT ${miter_deploy_script})
+endif()
+
 if(UNIX AND NOT APPLE)
     install(FILES miter.desktop DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
+    install(FILES assets/icons/miter.svg DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps)
 endif()
+
+set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
+set(CPACK_PACKAGE_VENDOR "linushuan")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Minimal Markdown Editor")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${PROJECT_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+set(CPACK_MONOLITHIC_INSTALL ON)
+
+if(APPLE)
+    set(CPACK_GENERATOR "DragNDrop;ZIP")
+    set(CPACK_DMG_VOLUME_NAME "miter")
+elseif(WIN32)
+    set(CPACK_GENERATOR "ZIP")
+else()
+    set(CPACK_GENERATOR "TGZ")
+endif()
+
+include(CPack)

@@ -16,6 +16,7 @@ enum class BlockState : int {
     Blockquote   = 4,
     ListItem     = 5,
     Table        = 6,
+    HtmlComment  = 7,
 };
 
 struct ContextFrame {

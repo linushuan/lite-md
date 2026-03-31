@@ -143,7 +143,8 @@ void MdHighlighter::highlightBlock(const QString &text)
     // 4. Run inline parser if not in code fence
     if (blockType != BlockType::CodeFenceBody &&
         blockType != BlockType::CodeFenceStart &&
-        blockType != BlockType::CodeFenceEnd) {
+        blockType != BlockType::CodeFenceEnd &&
+        blockType != BlockType::HtmlComment) {
 
         const int contentOffset = computeContentOffset();
 
@@ -309,6 +310,7 @@ void MdHighlighter::buildFormats()
     formats_[TokenType::ImageAlt]    = makeFormat(theme_.imageFg);
     formats_[TokenType::ImageUrl]    = makeFormat(theme_.linkUrlFg);
     formats_[TokenType::ImageBracket] = makeFormat(theme_.imageFg, true);
+    formats_[TokenType::HtmlComment] = makeFormat(theme_.lineNumberFg, false, true);
 
     formats_[TokenType::HardBreakSpace]     = makeFormat(theme_.hardBreakFg);
     formats_[TokenType::HardBreakBackslash] = makeFormat(theme_.hardBreakFg);

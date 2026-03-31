@@ -33,6 +33,7 @@ private:
 
     static bool tryEscape(State &s);
     static bool tryInlineCode(State &s);
+    static bool tryHtmlComment(State &s);
     static bool tryInlineLatex(State &s);
     static bool tryImage(State &s);
     static bool tryLink(State &s);

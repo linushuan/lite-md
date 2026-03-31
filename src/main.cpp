@@ -26,10 +26,6 @@ static bool hasInstalledDesktopEntry(const QString &desktopId)
 
 static QIcon createFallbackAppIcon()
 {
-    QIcon themeIcon = QIcon::fromTheme("accessories-text-editor");
-    if (!themeIcon.isNull())
-        return themeIcon;
-
     QPixmap pm(128, 128);
     pm.fill(Qt::transparent);
 
@@ -48,6 +44,26 @@ static QIcon createFallbackAppIcon()
     return QIcon(pm);
 }
 
+static QIcon resolveAppIcon()
+{
+    QIcon bundledIcon(QStringLiteral(":/icons/miter.svg"));
+    if (!bundledIcon.isNull()) {
+        return bundledIcon;
+    }
+
+    QIcon themeIcon = QIcon::fromTheme("miter");
+    if (!themeIcon.isNull()) {
+        return themeIcon;
+    }
+
+    themeIcon = QIcon::fromTheme("accessories-text-editor");
+    if (!themeIcon.isNull()) {
+        return themeIcon;
+    }
+
+    return createFallbackAppIcon();
+}
+
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
@@ -56,7 +72,7 @@ int main(int argc, char *argv[])
     if (hasInstalledDesktopEntry("miter")) {
         QApplication::setDesktopFileName("miter");
     }
-    app.setWindowIcon(createFallbackAppIcon());
+    app.setWindowIcon(resolveAppIcon());
 
     // Collect file paths from CLI arguments
     QStringList filesToOpen;

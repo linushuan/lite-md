@@ -29,6 +29,7 @@ enum class TokenType {
     InlineCode, InlineCodeMark,
     LinkText, LinkUrl, LinkBracket,
     ImageAlt, ImageUrl, ImageBracket,
+    HtmlComment,
     HardBreakSpace,
     HardBreakBackslash,
     Escape,

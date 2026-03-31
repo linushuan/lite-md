@@ -164,6 +164,25 @@ private slots:
         QCOMPARE(tokens[0].type, TokenType::BoldMarker);
         QCOMPARE(tokens[0].start, 7);
     }
+
+    void testHtmlCommentInline()
+    {
+        ContextStack ctx;
+        QVector<InlineToken> tokens;
+        InlineParser::parse("A <!-- note `x` --> B", 0, ctx, tokens);
+
+        bool foundComment = false;
+        for (const auto &t : tokens) {
+            if (t.type == TokenType::HtmlComment) {
+                foundComment = true;
+                QCOMPARE(t.start, 2);
+                QCOMPARE(t.length, 17);
+            }
+            QVERIFY(t.type != TokenType::InlineCode);
+            QVERIFY(t.type != TokenType::InlineCodeMark);
+        }
+        QVERIFY(foundComment);
+    }
 };
 
 QTEST_MAIN(TestInlineParser)

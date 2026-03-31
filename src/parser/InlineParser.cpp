@@ -17,6 +17,7 @@ void InlineParser::parse(const QString &text, int offset, const ContextStack &ct
     while (s.pos < s.end) {
         if (tryEscape(s)) continue;
         if (tryInlineCode(s)) continue;
+        if (tryHtmlComment(s)) continue;
         if (tryInlineLatex(s)) continue;
         if (tryImage(s)) continue;
         if (tryLink(s)) continue;
@@ -75,6 +76,26 @@ bool InlineParser::tryInlineCode(State &s)
         }
     }
     return false;
+}
+
+bool InlineParser::tryHtmlComment(State &s)
+{
+    if (s.pos + 3 >= s.end) return false;
+    if (s.text[s.pos] != '<' ||
+        s.text[s.pos + 1] != '!' ||
+        s.text[s.pos + 2] != '-' ||
+        s.text[s.pos + 3] != '-') {
+        return false;
+    }
+
+    const int closePos = s.text.indexOf("-->", s.pos + 4);
+    if (closePos < 0) {
+        return false;
+    }
+
+    s.tokens.append({s.pos, closePos + 3 - s.pos, TokenType::HtmlComment});
+    s.pos = closePos + 3;
+    return true;
 }
 
 bool InlineParser::tryInlineLatex(State &s)

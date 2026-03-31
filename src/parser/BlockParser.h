@@ -29,6 +29,7 @@ enum class BlockType {
     Blockquote,
     ListItem,
     Table,
+    HtmlComment,
     SetextUnderline,
     HR,
     BlankLine,
