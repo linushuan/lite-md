@@ -35,6 +35,8 @@ Settings Settings::load()
     s.autoSaveInterval = toml.getInt("editor", "auto_save_interval", s.autoSaveInterval);
     s.showHardBreak = toml.getBool("editor", "show_hard_break", s.showHardBreak);
     s.tabSize       = toml.getInt("editor", "tab_size", s.tabSize);
+    if (s.tabSize < 1) s.tabSize = 1;
+    if (s.tabSize > 16) s.tabSize = 16;
 
     s.restoreSession = toml.getBool("session", "restore", s.restoreSession);
 
@@ -65,7 +67,8 @@ void Settings::save() const
     out << "auto_save = " << (autoSave ? "true" : "false") << "\n";
     out << "auto_save_interval = " << autoSaveInterval << "\n";
     out << "show_hard_break = " << (showHardBreak ? "true" : "false") << "\n";
-    out << "tab_size = " << tabSize << "\n\n";
+    const int safeTabSize = (tabSize < 1) ? 1 : ((tabSize > 16) ? 16 : tabSize);
+    out << "tab_size = " << safeTabSize << "\n\n";
 
     out << "[session]\n";
     out << "restore = " << (restoreSession ? "true" : "false") << "\n\n";

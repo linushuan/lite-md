@@ -7,6 +7,22 @@
 #include <QFontInfo>
 
 #include "editor/MdEditor.h"
+#include "config/Settings.h"
+
+namespace {
+int effectiveTabSize()
+{
+    int tabSize = Settings::load().tabSize;
+    if (tabSize < 1) tabSize = 1;
+    if (tabSize > 16) tabSize = 16;
+    return tabSize;
+}
+
+QString spaces(int count)
+{
+    return QString(count, QLatin1Char(' '));
+}
+}
 
 class TestMdEditor : public QObject {
     Q_OBJECT
@@ -101,6 +117,7 @@ private slots:
 
     void testTabIndentOrderedListAndRecount()
     {
+        const int tabSize = effectiveTabSize();
         editor_->setPlainText("1. alpha\n2. \n3. gamma");
 
         QTextBlock second = editor_->document()->findBlockByNumber(1);
@@ -112,13 +129,14 @@ private slots:
 
         const QStringList lines = editor_->toPlainText().split('\n');
         QCOMPARE(lines.value(0), QString("1. alpha"));
-        QCOMPARE(lines.value(1), QString("  1. "));
+        QCOMPARE(lines.value(1), spaces(tabSize) + QString("1. "));
         QCOMPARE(lines.value(2), QString("2. gamma"));
     }
 
     void testBacktabOutdentOrderedListAndRecount()
     {
-        editor_->setPlainText("1. alpha\n  1. \n2. gamma");
+        const int tabSize = effectiveTabSize();
+        editor_->setPlainText(QString("1. alpha\n") + spaces(tabSize) + QString("1. \n2. gamma"));
 
         QTextBlock second = editor_->document()->findBlockByNumber(1);
         QTextCursor cursor(editor_->document());
@@ -135,6 +153,7 @@ private slots:
 
     void testTabIndentOrderedSubtreeRenumbersSiblings()
     {
+        const int tabSize = effectiveTabSize();
         editor_->setPlainText("1. parent\n2. child-a\n3. child-b\n4. tail");
 
         QTextBlock second = editor_->document()->findBlockByNumber(1);
@@ -148,13 +167,14 @@ private slots:
 
         const QStringList lines = editor_->toPlainText().split('\n');
         QCOMPARE(lines.value(0), QString("1. parent"));
-        QCOMPARE(lines.value(1), QString("  1. child-a"));
-        QCOMPARE(lines.value(2), QString("  2. child-b"));
+        QCOMPARE(lines.value(1), spaces(tabSize) + QString("1. child-a"));
+        QCOMPARE(lines.value(2), spaces(tabSize) + QString("2. child-b"));
         QCOMPARE(lines.value(3), QString("2. tail"));
     }
 
     void testTabSelectionMovesListBlock()
     {
+        const int tabSize = effectiveTabSize();
         editor_->setPlainText("- parent\n  child\n- peer");
 
         QTextBlock first = editor_->document()->findBlockByNumber(0);
@@ -167,13 +187,14 @@ private slots:
         QTest::keyClick(editor_, Qt::Key_Tab);
 
         const QStringList lines = editor_->toPlainText().split('\n');
-        QCOMPARE(lines.value(0), QString("  - parent"));
-        QCOMPARE(lines.value(1), QString("    child"));
+        QCOMPARE(lines.value(0), spaces(tabSize) + QString("- parent"));
+        QCOMPARE(lines.value(1), spaces(tabSize + 2) + QString("child"));
         QCOMPARE(lines.value(2), QString("- peer"));
     }
 
     void testTabOnNonEmptyListDoesNotMoveSubtree()
     {
+        const int tabSize = effectiveTabSize();
         editor_->setPlainText("- parent\n  child\n- peer");
 
         QTextBlock first = editor_->document()->findBlockByNumber(0);
@@ -184,7 +205,7 @@ private slots:
         QTest::keyClick(editor_, Qt::Key_Tab);
 
         const QStringList lines = editor_->toPlainText().split('\n');
-        QCOMPARE(lines.value(0), QString("- parent  "));
+        QCOMPARE(lines.value(0), QString("- parent") + spaces(tabSize));
         QCOMPARE(lines.value(1), QString("  child"));
         QCOMPARE(lines.value(2), QString("- peer"));
     }

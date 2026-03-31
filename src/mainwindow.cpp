@@ -24,6 +24,7 @@
 #include <QStyle>
 #include <QPainter>
 #include <QPainterPath>
+#include <QGuiApplication>
 
 namespace {
 QIcon themeIcon(bool dark)
@@ -89,6 +90,53 @@ QIcon themeToggleLineIcon()
 
     return QIcon(pix);
 }
+
+QIcon firstAvailableThemeIcon(const QStringList &names)
+{
+    for (const QString &name : names) {
+        const QIcon icon = QIcon::fromTheme(name);
+        if (!icon.isNull()) {
+            return icon;
+        }
+    }
+    return QIcon();
+}
+
+QIcon saveAsBadgeIcon(const QIcon &baseIcon)
+{
+    QPixmap pix = baseIcon.pixmap(18, 18);
+    if (pix.isNull()) {
+        pix = QPixmap(18, 18);
+        pix.fill(Qt::transparent);
+    }
+
+    QPainter painter(&pix);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    QColor badgeBg = QGuiApplication::palette().color(QPalette::Highlight);
+    if (!badgeBg.isValid()) {
+        badgeBg = QColor("#3b82f6");
+    }
+    badgeBg.setAlpha(230);
+
+    QColor badgeFg = QGuiApplication::palette().color(QPalette::HighlightedText);
+    if (!badgeFg.isValid()) {
+        badgeFg = QColor("#ffffff");
+    }
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(badgeBg);
+    painter.drawEllipse(QRectF(10.0, 10.0, 7.0, 7.0));
+
+    QPen plusPen(badgeFg);
+    plusPen.setWidthF(1.3);
+    plusPen.setCapStyle(Qt::RoundCap);
+    painter.setPen(plusPen);
+    painter.drawLine(QPointF(13.5, 11.7), QPointF(13.5, 15.3));
+    painter.drawLine(QPointF(11.7, 13.5), QPointF(15.3, 13.5));
+
+    return QIcon(pix);
+}
 }
 
 MainWindow::MainWindow(const QStringList &filesToOpen, QWidget *parent)
@@ -131,6 +179,8 @@ MainWindow::MainWindow(const QStringList &filesToOpen, QWidget *parent)
     if (tabManager_->count() == 0) {
         tabManager_->addEmptyTab();
     }
+
+    onCurrentEditorChanged(tabManager_->currentEditor());
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -184,7 +234,11 @@ void MainWindow::closeEvent(QCloseEvent *event)
         if (result == QDialog::Accepted) {
             for (int i = 0; i < checkboxes.size(); ++i) {
                 if (checkboxes[i]->isChecked()) {
-                    tabManager_->editorAt(unsavedIndices[i])->save();
+                    auto *editor = tabManager_->editorAt(unsavedIndices[i]);
+                    if (!editor || !editor->saveInteractive(this)) {
+                        event->ignore();
+                        return;
+                    }
                 }
             }
         }
@@ -228,6 +282,8 @@ void MainWindow::onCurrentEditorChanged(EditorWidget *editor)
 
     currentLine_ = editor->cursorLine();
     currentCol_ = editor->cursorColumn();
+    currentWords_ = md->wordCount();
+    currentChars_ = md->charCount();
     currentPath_ = editor->filePath();
     refreshStatusBar();
 }
@@ -249,19 +305,14 @@ void MainWindow::onOpenFile()
 void MainWindow::onSave()
 {
     auto *editor = tabManager_->currentEditor();
-    if (editor) editor->save();
+    if (editor) editor->saveInteractive(this);
 }
 
 void MainWindow::onSaveAs()
 {
     auto *editor = tabManager_->currentEditor();
     if (!editor) return;
-
-    QString path = QFileDialog::getSaveFileName(this, "Save As",
-                                                 QString(), "Markdown (*.md *.markdown);;All Files (*)");
-    if (!path.isEmpty()) {
-        editor->saveAs(path);
-    }
+    editor->saveAsInteractive(this);
 }
 
 void MainWindow::onCloseTab()
@@ -392,8 +443,29 @@ void MainWindow::setupToolbar()
     auto *importMd = tb->addAction(style()->standardIcon(QStyle::SP_DialogOpenButton), "Import");
     connect(importMd, &QAction::triggered, this, &MainWindow::onOpenFile);
 
-    auto *save = tb->addAction(style()->standardIcon(QStyle::SP_DialogSaveButton), "Save");
+    QIcon saveIcon = firstAvailableThemeIcon({
+        "document-save-symbolic",
+        "document-save",
+        "filesave"
+    });
+    if (saveIcon.isNull()) {
+        saveIcon = style()->standardIcon(QStyle::SP_DialogSaveButton);
+    }
+
+    auto *save = tb->addAction(saveIcon, "Save");
     connect(save, &QAction::triggered, this, &MainWindow::onSave);
+
+    QIcon saveAsIcon = firstAvailableThemeIcon({
+        "document-save-as-symbolic",
+        "document-save-as",
+        "filesaveas"
+    });
+    if (saveAsIcon.isNull()) {
+        saveAsIcon = saveAsBadgeIcon(saveIcon);
+    }
+
+    auto *saveAs = tb->addAction(saveAsIcon, "Save As");
+    connect(saveAs, &QAction::triggered, this, &MainWindow::onSaveAs);
 
     tb->addSeparator();
     themeToggleAction_ = tb->addAction(QIcon(), QString());

@@ -20,6 +20,8 @@ public:
     void    loadFile(const QString &path);
     bool    save();
     bool    saveAs(const QString &path);
+    bool    saveInteractive(QWidget *dialogParent = nullptr);
+    bool    saveAsInteractive(QWidget *dialogParent = nullptr);
     QString filePath() const;
     bool    isModified() const;
     int     cursorLine() const;

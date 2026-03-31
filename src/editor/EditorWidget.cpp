@@ -9,6 +9,7 @@
 #include <QTextCursor>
 #include <QTextBlock>
 #include <QFont>
+#include <QFileDialog>
 
 EditorWidget::EditorWidget(QWidget *parent)
     : QWidget(parent)
@@ -49,6 +50,32 @@ bool EditorWidget::save()
 bool EditorWidget::saveAs(const QString &path)
 {
     return editor_->saveFile(path);
+}
+
+bool EditorWidget::saveInteractive(QWidget *dialogParent)
+{
+    if (!filePath().isEmpty()) {
+        return save();
+    }
+    return saveAsInteractive(dialogParent);
+}
+
+bool EditorWidget::saveAsInteractive(QWidget *dialogParent)
+{
+    QWidget *parentWidget = dialogParent ? dialogParent : this;
+    const QString initialPath = filePath();
+    const QString path = QFileDialog::getSaveFileName(
+        parentWidget,
+        "Save As",
+        initialPath,
+        "Markdown (*.md *.markdown);;All Files (*)"
+    );
+
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    return saveAs(path);
 }
 
 QString EditorWidget::filePath() const

@@ -200,7 +200,9 @@ MdEditor::MdEditor(QWidget *parent)
 {
     const Settings settings = Settings::load();
     themeName_ = settings.theme;
-    tabSize_ = 2;
+    tabSize_ = settings.tabSize;
+    if (tabSize_ < 1) tabSize_ = 1;
+    if (tabSize_ > 16) tabSize_ = 16;
 
     // Initialize line number area
     lineNumberArea_ = new LineNumberArea(this);
@@ -301,6 +303,16 @@ QString MdEditor::currentFilePath() const
 bool MdEditor::isModified() const
 {
     return document()->isModified();
+}
+
+int MdEditor::wordCount() const
+{
+    return cachedWords_;
+}
+
+int MdEditor::charCount() const
+{
+    return cachedChars_;
 }
 
 int MdEditor::lineNumberAreaWidth() const

@@ -65,6 +65,7 @@ private:
     QSet<QString>       externallyModifiedPaths_;
 
     void updateTabTitle(int index);
+    void promptReloadIfExternallyModified(int index);
     bool confirmClose(EditorWidget *editor);
     int  findTabByPath(const QString &path);
 };

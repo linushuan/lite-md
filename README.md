@@ -10,6 +10,7 @@ It focuses on fast typing, syntax highlighting, and clean reading while editing.
 - Use dark/white theme toggle from the toolbar.
 - Auto-continue list items on Enter (bullets, numbers, checkboxes).
 - Save files with standard keyboard shortcuts.
+- Detect external file changes, mark the tab, and offer to reload on focus.
 
 ## Quick Start
 
@@ -88,6 +89,16 @@ User settings are saved at:
 - Linux (typical): `~/.config/mded/config.toml`
 - macOS (typical): `~/Library/Preferences/mded/config.toml`
 - Windows (typical): `%LOCALAPPDATA%\\mded\\config.toml`
+
+Example editor settings:
+
+```toml
+[editor]
+tab_size = 2
+```
+
+`tab_size` controls how many spaces are inserted when you press `Tab`
+and the indent width used by list Tab/Shift+Tab behavior.
 
 ## Acknowledgements
 

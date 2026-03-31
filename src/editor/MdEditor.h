@@ -20,6 +20,8 @@ public:
     bool    saveFile(const QString &path = QString());
     QString currentFilePath() const;
     bool    isModified() const;
+    int     wordCount() const;
+    int     charCount() const;
 
     // Line number area support
     int  lineNumberAreaWidth() const;

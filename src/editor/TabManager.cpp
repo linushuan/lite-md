@@ -239,6 +239,7 @@ void TabManager::onCurrentChanged(int index)
 {
     if (index >= 0 && index < stack_->count()) {
         stack_->setCurrentIndex(index);
+        promptReloadIfExternallyModified(index);
         emit currentEditorChanged(currentEditor());
     }
 }
@@ -259,10 +260,58 @@ void TabManager::onFileWatcherTriggered(const QString &path)
     externallyModifiedPaths_.insert(path);
     updateTabTitle(index);
 
+    if (index == currentIndex()) {
+        promptReloadIfExternallyModified(index);
+    }
+
     // Re-add to watcher (Qt removes it after trigger)
     if (QFileInfo::exists(path)) {
         watcher_->addPath(path);
     }
+}
+
+void TabManager::promptReloadIfExternallyModified(int index)
+{
+    auto *editor = editorAt(index);
+    if (!editor) {
+        return;
+    }
+
+    const QString path = editor->filePath();
+    if (path.isEmpty() || !externallyModifiedPaths_.contains(path)) {
+        return;
+    }
+
+    QFileInfo fi(path);
+    if (!fi.exists()) {
+        return;
+    }
+
+    QString message = QString("%1 was modified outside mded.\nReload from disk?")
+        .arg(fi.fileName());
+    if (editor->isModified()) {
+        message += "\n\nCurrent unsaved changes will be lost.";
+    }
+
+    const QMessageBox::StandardButton defaultChoice = editor->isModified()
+        ? QMessageBox::No
+        : QMessageBox::Yes;
+
+    const auto choice = QMessageBox::question(
+        this,
+        "File Modified Externally",
+        message,
+        QMessageBox::Yes | QMessageBox::No,
+        defaultChoice
+    );
+
+    if (choice != QMessageBox::Yes) {
+        return;
+    }
+
+    editor->loadFile(path);
+    externallyModifiedPaths_.remove(path);
+    updateTabTitle(index);
 }
 
 void TabManager::onEditorFileSaved(const QString &path)
@@ -294,7 +343,7 @@ void TabManager::updateTabTitle(int index)
         : QFileInfo(path).fileName();
 
     if (editor->isModified())
-        title = "● " + title;
+        title = "* " + title;
 
     if (externallyModifiedPaths_.contains(path))
         title += " [已在外部修改]";
@@ -316,7 +365,7 @@ bool TabManager::confirmClose(EditorWidget *editor)
         QMessageBox::Save);
 
     if (result == QMessageBox::Save) {
-        return editor->save();
+        return editor->saveInteractive(this);
     } else if (result == QMessageBox::Cancel) {
         return false;
     }
