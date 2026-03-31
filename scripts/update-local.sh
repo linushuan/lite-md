@@ -37,4 +37,10 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
     gtk-update-icon-cache -f "$PREFIX/share/icons/hicolor" || true
 fi
 
+if [[ ":$PATH:" != *":$PREFIX/bin:"* ]]; then
+    echo "Note: $PREFIX/bin is not in PATH for this shell."
+    echo "Add this line to ~/.bashrc or ~/.profile:"
+    echo "  export PATH=\"$PREFIX/bin:\$PATH\""
+fi
+
 echo "Update complete: $PREFIX/bin/miter"

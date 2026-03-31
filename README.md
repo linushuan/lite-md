@@ -83,6 +83,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package-windows.ps1
 
 This produces a `.zip` package in the build directory (default: `build-win\`).
 
+### Windows package from Bash (Git Bash / WSL with PowerShell)
+
+```bash
+cd ~/linus/coding/vibe-coding/lite-md
+./scripts/package-windows.sh
+```
+
 ## Install / Update In `~/` (Linux)
 
 Use this for first install and for every later update:
