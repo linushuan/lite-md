@@ -142,7 +142,7 @@ QIcon saveAsBadgeIcon(const QIcon &baseIcon)
 MainWindow::MainWindow(const QStringList &filesToOpen, QWidget *parent)
     : QMainWindow(parent)
 {
-    setWindowTitle("mded");
+    setWindowTitle("miter");
 
     // Load settings
     Settings settings = Settings::load();

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(mded VERSION 0.2.0 LANGUAGES CXX)
+project(miter VERSION 0.2.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 
@@ -32,37 +32,37 @@ set(SOURCES
 )
 
 if(APPLE)
-    add_executable(mded MACOSX_BUNDLE ${SOURCES})
+    add_executable(miter MACOSX_BUNDLE ${SOURCES})
 elseif(WIN32)
-    add_executable(mded WIN32 ${SOURCES})
+    add_executable(miter WIN32 ${SOURCES})
 else()
-    add_executable(mded ${SOURCES})
+    add_executable(miter ${SOURCES})
 endif()
 
-qt_add_resources(mded "mded_themes"
+qt_add_resources(miter "miter_themes"
     PREFIX "/themes"
     FILES
         themes/dark.toml
         themes/white.toml
 )
 
-target_include_directories(mded PRIVATE src)
+target_include_directories(miter PRIVATE src)
 
-target_link_libraries(mded PRIVATE
+target_link_libraries(miter PRIVATE
     Qt6::Widgets
     Qt6::Core
     Qt6::Gui
 )
 
 if(MSVC)
-    target_compile_options(mded PRIVATE
+    target_compile_options(miter PRIVATE
         /W4
         /permissive-
         /utf-8
         $<$<CONFIG:Release>:/O2>
     )
 else()
-    target_compile_options(mded PRIVATE
+    target_compile_options(miter PRIVATE
         -Wall -Wextra -Wpedantic
         $<$<CONFIG:Release>:-O2>
     )
@@ -77,12 +77,12 @@ if(BUILD_TESTS)
 endif()
 
 # Install
-install(TARGETS mded
+install(TARGETS miter
     BUNDLE DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-install(DIRECTORY themes DESTINATION ${CMAKE_INSTALL_DATADIR}/mded)
+install(DIRECTORY themes DESTINATION ${CMAKE_INSTALL_DATADIR}/miter)
 
 if(UNIX AND NOT APPLE)
-    install(FILES mded.desktop DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
+    install(FILES miter.desktop DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/applications)
 endif()

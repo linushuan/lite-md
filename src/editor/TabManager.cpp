@@ -287,7 +287,7 @@ void TabManager::promptReloadIfExternallyModified(int index)
         return;
     }
 
-    QString message = QString("%1 was modified outside mded.\nReload from disk?")
+    QString message = QString("%1 was modified outside miter.\nReload from disk?")
         .arg(fi.fileName());
     if (editor->isModified()) {
         message += "\n\nCurrent unsaved changes will be lost.";

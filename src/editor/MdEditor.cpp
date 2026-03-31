@@ -33,7 +33,7 @@ Theme resolveThemeByName(const QString &themeName)
         QDir::current().filePath("themes/" + themeFile),
         appDir + "/themes/" + themeFile,
         appDir + "/../themes/" + themeFile,
-        appDir + "/../share/mded/themes/" + themeFile,
+        appDir + "/../share/miter/themes/" + themeFile,
         appDir + "/../Resources/themes/" + themeFile,
         QString(":/themes/%1").arg(themeFile)
     };

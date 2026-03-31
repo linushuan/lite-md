@@ -13,7 +13,7 @@
 QString SessionManager::sessionPath()
 {
     QString configDir = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
-                        + "/mded";
+                        + "/miter";
     QDir().mkpath(configDir);
     return configDir + "/session.json";
 }

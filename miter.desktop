@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=mded
+Name=miter
 Comment=Minimal Markdown Editor
-Exec=mded %F
-Icon=mded
+Exec=miter %F
+Icon=miter
 Terminal=false
 Categories=Utility;TextEditor;
 MimeType=text/markdown;text/plain;

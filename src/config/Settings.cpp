@@ -12,7 +12,7 @@
 QString Settings::configPath()
 {
     QString configDir = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
-                        + "/mded";
+                        + "/miter";
     QDir().mkpath(configDir);
     return configDir + "/config.toml";
 }

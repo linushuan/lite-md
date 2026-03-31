@@ -1,6 +1,6 @@
-# mded
+# miter
 
-mded is a lightweight Markdown editor for Linux, macOS, and Windows.
+miter is a lightweight Markdown editor for Linux, macOS, and Windows.
 It focuses on fast typing, syntax highlighting, and clean reading while editing.
 
 ## What You Can Do
@@ -21,13 +21,13 @@ Build and run from source:
 ```bash
 cmake -S . -B build
 cmake --build build -j$(nproc)
-./build/mded
+./build/miter
 ```
 
 Open files directly:
 
 ```bash
-./build/mded notes.md todo.md
+./build/miter notes.md todo.md
 ```
 
 ### macOS
@@ -48,7 +48,7 @@ cmake --build build -j$(sysctl -n hw.ncpu)
 Run:
 
 ```bash
-open build/mded.app
+open build/miter.app
 ```
 
 ### Windows
@@ -58,7 +58,7 @@ Install Qt 6 and CMake, then build from a Developer PowerShell:
 ```powershell
 cmake -S . -B build -DCMAKE_PREFIX_PATH="C:/Qt/6.8.0/msvc2022_64"
 cmake --build build --config Release
-./build/Release/mded.exe
+./build/Release/miter.exe
 ```
 
 ## Shortcuts
@@ -86,9 +86,9 @@ cmake --build build --config Release
 
 User settings are saved at:
 
-- Linux (typical): `~/.config/mded/config.toml`
-- macOS (typical): `~/Library/Preferences/mded/config.toml`
-- Windows (typical): `%LOCALAPPDATA%\\mded\\config.toml`
+- Linux (typical): `~/.config/miter/config.toml`
+- macOS (typical): `~/Library/Preferences/miter/config.toml`
+- Windows (typical): `%LOCALAPPDATA%\\miter\\config.toml`
 
 Example editor settings:
 

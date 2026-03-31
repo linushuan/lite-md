@@ -28,7 +28,7 @@ ui_*.h
 *.dylib
 *.dll
 *.exe
-mded
+miter
 *.out
 
 # Test output

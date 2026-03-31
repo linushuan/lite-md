@@ -7,7 +7,22 @@
 #include <QPixmap>
 #include <QPainter>
 #include <QFont>
+#include <QDir>
+#include <QFileInfo>
+#include <QStandardPaths>
 #include "mainwindow.h"
+
+static bool hasInstalledDesktopEntry(const QString &desktopId)
+{
+    const QString desktopFileName = desktopId + ".desktop";
+    const QStringList appDirs = QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation);
+    for (const QString &dir : appDirs) {
+        if (QFileInfo::exists(QDir(dir).filePath(desktopFileName))) {
+            return true;
+        }
+    }
+    return false;
+}
 
 static QIcon createFallbackAppIcon()
 {
@@ -36,9 +51,11 @@ static QIcon createFallbackAppIcon()
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    app.setApplicationName("mded");
+    app.setApplicationName("miter");
     app.setApplicationVersion("0.2.0");
-    QApplication::setDesktopFileName("mded");
+    if (hasInstalledDesktopEntry("miter")) {
+        QApplication::setDesktopFileName("miter");
+    }
     app.setWindowIcon(createFallbackAppIcon());
 
     // Collect file paths from CLI arguments
