@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_DIR="${1:-$HOME/linus/coding/vibe-coding/lite-md}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+REPO_DIR="${1:-$DEFAULT_REPO_DIR}"
 BUILD_DIR="${2:-$REPO_DIR/build-macos}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then

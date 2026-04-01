@@ -751,11 +751,22 @@ bool MdEditor::handleEnterKey(QKeyEvent *event)
         return false;
     }
 
-    const bool shiftEnter = event->modifiers().testFlag(Qt::ShiftModifier);
+    if (event->modifiers().testFlag(Qt::ShiftModifier)) {
+        QTextCursor plainEnterCursor = textCursor();
+        plainEnterCursor.beginEditBlock();
+        if (plainEnterCursor.hasSelection()) {
+            plainEnterCursor.removeSelectedText();
+        }
+        plainEnterCursor.insertBlock();
+        plainEnterCursor.endEditBlock();
+        setTextCursor(plainEnterCursor);
+        return true;
+    }
+
     QTextCursor cursor = textCursor();
     QString currentLine = cursor.block().text();
 
-    if (!shiftEnter && cursor.positionInBlock() == currentLine.size()) {
+    if (cursor.positionInBlock() == currentLine.size()) {
         QString latexPrefix;
         QString latexEnv;
         if (matchLatexBeginEnvLine(currentLine, &latexPrefix, &latexEnv)) {
@@ -890,20 +901,6 @@ bool MdEditor::handleEnterKey(QKeyEvent *event)
         setTextCursor(editCursor);
         return true;
     };
-
-    if (shiftEnter) {
-        if (clearCurrentEmptyListMarker()) {
-            if (ordered) {
-                renumberOrderedListsAroundBlock(textCursor().block());
-            }
-            return true;
-        }
-        if (clearCurrentEmptyBlockquotePrefix()) {
-            return true;
-        }
-        QPlainTextEdit::keyPressEvent(event);
-        return true;
-    }
 
     const bool shouldExitByEnter = emptyListItem && (
         (ordered && hasSameTypeListContextBefore(cursor.block(), true, orderedIndent))

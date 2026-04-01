@@ -1,9 +1,13 @@
 param(
-    [string]$RepoDir = "$HOME\linus\coding\vibe-coding\lite-md",
+    [string]$RepoDir = "",
     [string]$BuildDir = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $RepoDir) {
+    $RepoDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+}
 
 if (-not $BuildDir) {
     $BuildDir = Join-Path $RepoDir "build-win"

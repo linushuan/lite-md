@@ -103,7 +103,7 @@ private slots:
         QCOMPARE(editor_->toPlainText(), QString("- first\n"));
     }
 
-    void testShiftEnterOnEmptyUnorderedListExitsList()
+    void testShiftEnterOnEmptyUnorderedListCreatesPlainNewline()
     {
         editor_->setPlainText("- first");
 
@@ -114,7 +114,12 @@ private slots:
         QTest::keyClick(editor_, Qt::Key_Return);
         QTest::keyClick(editor_, Qt::Key_Return, Qt::ShiftModifier);
 
-        QCOMPARE(editor_->toPlainText(), QString("- first\n"));
+        QCOMPARE(editor_->toPlainText(), QString("- first\n- \n"));
+    }
+
+    void testShiftEnterOnEmptyUnorderedListExitsList()
+    {
+        testShiftEnterOnEmptyUnorderedListCreatesPlainNewline();
     }
 
     void testParenthesisAutopairAtLineEnd()
