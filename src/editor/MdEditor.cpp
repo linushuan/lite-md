@@ -15,8 +15,7 @@
 #include <QTextBlock>
 #include <QKeyEvent>
 #include <QInputMethodEvent>
-#include <QGuiApplication>
-#include <QInputMethod>
+#include <QFocusEvent>
 #include <QScrollBar>
 #include <QTextOption>
 #include <QPalette>
@@ -25,16 +24,11 @@
 #include <QTimer>
 #include <QFontInfo>
 #include <QFontDatabase>
+#include <QStringConverter>
 #include <QTextCharFormat>
 #include <QTextFormat>
 
 namespace {
-bool isInputMethodVisible()
-{
-    QInputMethod *inputMethod = QGuiApplication::inputMethod();
-    return inputMethod && inputMethod->isVisible();
-}
-
 void applyThemePalette(QPlainTextEdit *editor, const Theme &theme)
 {
     QPalette pal = editor->palette();
@@ -422,9 +416,40 @@ bool isStandaloneLatexDisplayFenceLine(const QString &line)
     return BlockParser::isStandaloneLatexDisplayFence(line);
 }
 
-bool isCodeFenceStartLine(const QString &line)
+bool parseCodeFenceStartLine(const QString &line,
+                             QChar *fenceChar = nullptr,
+                             int *fenceLen = nullptr)
 {
-    return BlockParser::isCodeFenceStartLine(line);
+    QChar localFenceChar;
+    int localFenceLen = 0;
+    int indent = 0;
+    QString lang;
+    if (!BlockParser::matchCodeFenceStart(line, localFenceChar, localFenceLen, indent, lang)) {
+        return false;
+    }
+
+    if (fenceChar) {
+        *fenceChar = localFenceChar;
+    }
+    if (fenceLen) {
+        *fenceLen = localFenceLen;
+    }
+    return true;
+}
+
+bool isCodeFenceEndLineForFence(const QString &line, QChar fenceChar, int fenceLen)
+{
+    const QString trimmed = line.trimmed();
+    if (trimmed.size() < fenceLen) {
+        return false;
+    }
+
+    for (QChar c : trimmed) {
+        if (c != fenceChar) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool isHorizontalRuleLine(const QString &line)
@@ -486,15 +511,34 @@ bool isInsideStandaloneLatexDisplayBefore(const QTextDocument *doc, const QTextB
     return inDisplay;
 }
 
-bool isInsideBacktickFenceBefore(const QTextDocument *doc, const QTextBlock &untilBlock)
-{
+struct CodeFenceScanState {
     bool inFence = false;
+    QChar fenceChar;
+    int fenceLen = 0;
+};
+
+CodeFenceScanState codeFenceStateBefore(const QTextDocument *doc, const QTextBlock &untilBlock)
+{
+    CodeFenceScanState state;
     for (QTextBlock block = doc->begin(); block.isValid() && block != untilBlock; block = block.next()) {
-        if (isCodeFenceStartLine(block.text())) {
-            inFence = !inFence;
+        const QString line = block.text();
+
+        if (state.inFence) {
+            if (isCodeFenceEndLineForFence(line, state.fenceChar, state.fenceLen)) {
+                state = CodeFenceScanState{};
+            }
+            continue;
+        }
+
+        QChar fenceChar;
+        int fenceLen = 0;
+        if (parseCodeFenceStartLine(line, &fenceChar, &fenceLen)) {
+            state.inFence = true;
+            state.fenceChar = fenceChar;
+            state.fenceLen = fenceLen;
         }
     }
-    return inFence;
+    return state;
 }
 
 void insertMultilineClosingFence(QPlainTextEdit *editor,
@@ -592,11 +636,17 @@ MdEditor::MdEditor(QWidget *parent)
 
 void MdEditor::loadFile(const QString &path)
 {
+    if (imeComposing_) {
+        imeComposing_ = false;
+        highlighter_->setEnabled(true);
+    }
+
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
         return;
 
     QTextStream in(&file);
+    in.setEncoding(QStringConverter::Utf8);
     setPlainText(in.readAll());
     file.close();
 
@@ -618,6 +668,7 @@ bool MdEditor::saveFile(const QString &path)
         return false;
 
     QTextStream out(&file);
+    out.setEncoding(QStringConverter::Utf8);
     out << toPlainText();
     file.close();
 
@@ -687,6 +738,9 @@ void MdEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
         }
         block = block.next();
         top = bottom;
+        if (!block.isValid()) {
+            break;
+        }
         bottom = top + qRound(blockBoundingRect(block).height());
         ++blockNumber;
     }
@@ -702,7 +756,7 @@ void MdEditor::resizeEvent(QResizeEvent *event)
 
 void MdEditor::keyPressEvent(QKeyEvent *event)
 {
-    if (imeComposing_ || isInputMethodVisible()) {
+    if (imeComposing_) {
         if (event->key() == Qt::Key_Return ||
             event->key() == Qt::Key_Enter ||
             event->key() == Qt::Key_Tab ||
@@ -778,8 +832,6 @@ bool MdEditor::handleAutoCloseKey(QKeyEvent *event)
         closer = QLatin1Char(']');
     } else if (typed == QLatin1Char('{')) {
         closer = QLatin1Char('}');
-    } else if (typed == QLatin1Char('<')) {
-        closer = QLatin1Char('>');
     } else if (typed == QLatin1Char('$')) {
         closer = QLatin1Char('$');
     } else if (typed == QLatin1Char('`')) {
@@ -822,6 +874,10 @@ bool MdEditor::handleTabKey(QKeyEvent *event)
 bool MdEditor::handleEnterKey(QKeyEvent *event)
 {
     if (event->key() != Qt::Key_Return && event->key() != Qt::Key_Enter) {
+        return false;
+    }
+
+    if (imeComposing_) {
         return false;
     }
 
@@ -868,15 +924,20 @@ bool MdEditor::handleEnterKey(QKeyEvent *event)
 
         bool fenceKnown = false;
         const bool insideFenceFromContext = highlighter_->blockStartsInsideCodeFence(cursor.block(), &fenceKnown);
-        const bool insideBacktickFence = fenceKnown
+        const CodeFenceScanState fallbackFenceState = codeFenceStateBefore(document(), cursor.block());
+        const bool insideCodeFence = fenceKnown
             ? insideFenceFromContext
-            : isInsideBacktickFenceBefore(document(), cursor.block());
+            : fallbackFenceState.inFence;
 
-        if (isCodeFenceStartLine(currentLine) &&
-            !insideBacktickFence &&
-            !hasImmediateAutoClosedBlock(cursor.block(), leadingSpaces + QStringLiteral("```"))) {
-            insertMultilineClosingFence(this, currentLine, QStringLiteral("```"));
-            return true;
+        QChar openingFenceChar;
+        int openingFenceLen = 0;
+        if (parseCodeFenceStartLine(currentLine, &openingFenceChar, &openingFenceLen) &&
+            !insideCodeFence) {
+            const QString closingFence(openingFenceLen, openingFenceChar);
+            if (!hasImmediateAutoClosedBlock(cursor.block(), leadingSpaces + closingFence)) {
+                insertMultilineClosingFence(this, currentLine, closingFence);
+                return true;
+            }
         }
     }
 
@@ -1041,7 +1102,6 @@ bool MdEditor::handleEnterKey(QKeyEvent *event)
 void MdEditor::inputMethodEvent(QInputMethodEvent *event)
 {
     const bool composing = !event->preeditString().isEmpty();
-    const bool hasCommit = !event->commitString().isEmpty() || event->replacementLength() != 0;
 
     // Keep highlighting paused through IME candidate selection to avoid
     // flicker and style churn while composing CJK/other IME text.
@@ -1071,10 +1131,20 @@ void MdEditor::inputMethodEvent(QInputMethodEvent *event)
         return;
     }
 
-    if (hasCommit || !isInputMethodVisible()) {
+    // Once preedit ends, always resume highlighting. Commit/cancel semantics
+    // vary across IMEs (fcitx/ibus), but composing=false is the stable signal.
+    imeComposing_ = false;
+    highlighter_->setEnabled(true);
+}
+
+void MdEditor::focusOutEvent(QFocusEvent *event)
+{
+    if (imeComposing_) {
         imeComposing_ = false;
         highlighter_->setEnabled(true);
     }
+
+    QPlainTextEdit::focusOutEvent(event);
 }
 
 void MdEditor::setGlobalFontPointSize(int pointSize)
@@ -1291,24 +1361,48 @@ void MdEditor::renumberOrderedListsAroundBlock(const QTextBlock &anchorBlock)
 
     int rootIndent = seedIndent;
     QTextBlock firstItem = seed;
-    while (true) {
+    const int maxBacktrackSteps = qMax(1, document()->blockCount());
+    bool reachedBacktrackEnd = false;
+    for (int step = 0; step < maxBacktrackSteps; ++step) {
         int prevIndent = 0;
         const QTextBlock prevItem = findPreviousOrderedBlockAtOrAboveIndent(firstItem, rootIndent, &prevIndent);
         if (!prevItem.isValid()) {
+            reachedBacktrackEnd = true;
             break;
         }
+
+        if (prevItem.blockNumber() >= firstItem.blockNumber() || prevIndent > rootIndent) {
+            reachedBacktrackEnd = true;
+            break;
+        }
+
         firstItem = prevItem;
         rootIndent = prevIndent;
     }
+    if (!reachedBacktrackEnd) {
+        return;
+    }
 
     QTextBlock lastItem = firstItem;
-    while (true) {
+    const int maxForwardSteps = qMax(1, document()->blockCount());
+    bool reachedForwardEnd = false;
+    for (int step = 0; step < maxForwardSteps; ++step) {
         const QTextBlock subtreeEnd = findListSubtreeEnd(lastItem);
         const QTextBlock nextSibling = findNextOrderedSiblingBlockAtIndent(subtreeEnd, rootIndent);
         if (!nextSibling.isValid()) {
+            reachedForwardEnd = true;
             break;
         }
+
+        if (nextSibling.blockNumber() <= lastItem.blockNumber()) {
+            reachedForwardEnd = true;
+            break;
+        }
+
         lastItem = nextSibling;
+    }
+    if (!reachedForwardEnd) {
+        return;
     }
 
     QTextBlock start = firstItem;
@@ -1479,6 +1573,9 @@ void MdEditor::highlightCurrentLine()
 
                 block = block.next();
                 top = bottom;
+                if (!block.isValid()) {
+                    break;
+                }
                 bottom = top + qRound(blockBoundingRect(block).height());
             }
         }
@@ -1514,17 +1611,32 @@ void MdEditor::recomputeWordCountStats()
     }
 
     const QString text = toPlainText();
+    auto isCountedCjkWordChar = [](QChar c) {
+        return CjkUtil::isCjk(c) && !c.isSpace() && !c.isPunct();
+    };
+
     int words = 0;
     int pos = 0;
     while (pos < text.size()) {
-        while (pos < text.size() && text[pos].isSpace()) {
+        while (pos < text.size() && (text[pos].isSpace() || text[pos].isPunct())) {
             ++pos;
         }
         if (pos >= text.size()) {
             break;
         }
+
+        if (isCountedCjkWordChar(text[pos])) {
+            ++words;
+            ++pos;
+            continue;
+        }
+
         ++words;
-        while (pos < text.size() && !text[pos].isSpace()) {
+        ++pos;
+        while (pos < text.size() &&
+               !text[pos].isSpace() &&
+               !text[pos].isPunct() &&
+               !isCountedCjkWordChar(text[pos])) {
             ++pos;
         }
     }

@@ -789,13 +789,17 @@ bool BlockParser::matchCodeFenceEnd(const QString &text, QChar fenceChar, int fe
     auto m = re.match(text);
     if (!m.hasMatch()) return false;
 
-    // Count fence chars
-    int count = 0;
-    for (QChar c : text.trimmed()) {
-        if (c == fenceChar) count++;
-        else break;
+    const QString trimmed = text.trimmed();
+    if (trimmed.length() < fenceLen) {
+        return false;
     }
-    return count >= fenceLen;
+
+    for (QChar c : trimmed) {
+        if (c != fenceChar) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool BlockParser::matchATXHeading(const QString &text, int &level, int &contentStart, int &contentEnd)

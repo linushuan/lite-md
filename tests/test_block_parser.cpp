@@ -59,6 +59,33 @@ private slots:
         QCOMPARE(BlockParser::classify("~~~", ctx, tokens), BlockType::CodeFenceEnd);
     }
 
+    void testCodeFenceEndAllowsTrailingSpaces()
+    {
+        ContextStack ctx;
+        QVector<BlockToken> tokens;
+
+        BlockParser::classify("```", ctx, tokens);
+        QVERIFY(ctx.inCode());
+
+        QCOMPARE(BlockParser::classify("```   ", ctx, tokens), BlockType::CodeFenceEnd);
+        QVERIFY(!ctx.inCode());
+    }
+
+    void testCodeFenceEndRequiresAtLeastOpeningLength()
+    {
+        ContextStack ctx;
+        QVector<BlockToken> tokens;
+
+        BlockParser::classify("~~~~", ctx, tokens);
+        QVERIFY(ctx.inCode());
+
+        QCOMPARE(BlockParser::classify("~~~", ctx, tokens), BlockType::CodeFenceBody);
+        QVERIFY(ctx.inCode());
+
+        QCOMPARE(BlockParser::classify("~~~~ ", ctx, tokens), BlockType::CodeFenceEnd);
+        QVERIFY(!ctx.inCode());
+    }
+
     void testBlockquote()
     {
         ContextStack ctx;

@@ -10,6 +10,7 @@
 class LineNumberArea;
 class MdHighlighter;
 class QInputMethodEvent;
+class QFocusEvent;
 class QTextBlock;
 class QTimer;
 
@@ -49,6 +50,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     void inputMethodEvent(QInputMethodEvent *event) override;
+    void focusOutEvent(QFocusEvent *event) override;
 
 signals:
     void fileChanged(const QString &path);

@@ -8,7 +8,9 @@
 #include <QFontInfo>
 #include <QPalette>
 #include <QColor>
+#include <QFocusEvent>
 #include <QInputMethodEvent>
+#include <QTemporaryFile>
 
 #include "editor/MdEditor.h"
 #include "config/Settings.h"
@@ -150,6 +152,79 @@ private slots:
         QCOMPARE(editor_->toPlainText(), QString("- 阿"));
     }
 
+    void testImeCancelPreeditResumesListAutocomplete()
+    {
+        editor_->setPlainText("1. item");
+
+        QTextCursor cursor = editor_->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        editor_->setTextCursor(cursor);
+
+        QInputMethodEvent preeditEvent(QStringLiteral("zhong"), {});
+        QCoreApplication::sendEvent(editor_, &preeditEvent);
+
+        // Simulate IME cancel (preedit cleared without commit text).
+        QInputMethodEvent cancelEvent(QString(), {});
+        QCoreApplication::sendEvent(editor_, &cancelEvent);
+
+        QTest::keyClick(editor_, Qt::Key_Return);
+
+        const QStringList lines = editor_->toPlainText().split('\n');
+        QCOMPARE(lines.value(0), QString("1. item"));
+        QCOMPARE(lines.value(1), QString("2. "));
+    }
+
+    void testFocusOutDuringImeCompositionRestoresEditorShortcuts()
+    {
+        editor_->setPlainText("plain text");
+
+        QTextCursor cursor = editor_->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        editor_->setTextCursor(cursor);
+
+        QInputMethodEvent preeditEvent(QStringLiteral("zhong"), {});
+        QCoreApplication::sendEvent(editor_, &preeditEvent);
+
+        QFocusEvent focusOutEvent(QEvent::FocusOut, Qt::ActiveWindowFocusReason);
+        QCoreApplication::sendEvent(editor_, &focusOutEvent);
+
+        editor_->setFocus();
+        QCoreApplication::processEvents();
+
+        const QString beforeEnter = editor_->toPlainText();
+        QTest::keyClick(editor_, Qt::Key_Return);
+        const QString afterEnter = editor_->toPlainText();
+
+        QCOMPARE(beforeEnter, QString("plain text"));
+        QCOMPARE(afterEnter, QString("plain text\n"));
+    }
+
+    void testLoadFileResetsImeCompositionState()
+    {
+        editor_->setPlainText("1. item");
+
+        QTextCursor cursor = editor_->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        editor_->setTextCursor(cursor);
+
+        QInputMethodEvent preeditEvent(QStringLiteral("zhong"), {});
+        QCoreApplication::sendEvent(editor_, &preeditEvent);
+
+        QTemporaryFile file;
+        QVERIFY(file.open());
+        file.write("fresh");
+        file.flush();
+
+        editor_->loadFile(file.fileName());
+
+        cursor = editor_->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        editor_->setTextCursor(cursor);
+
+        QTest::keyClick(editor_, Qt::Key_Return);
+        QCOMPARE(editor_->toPlainText(), QString("fresh\n"));
+    }
+
     void testSecondEnterOnEmptyUnorderedListExitsList()
     {
         editor_->setPlainText("- first");
@@ -275,7 +350,7 @@ private slots:
         editor_->clear();
 
         QTest::keyClicks(editor_, "<");
-        QCOMPARE(editor_->toPlainText(), QString("<>"));
+        QCOMPARE(editor_->toPlainText(), QString("<"));
         QCOMPARE(editor_->textCursor().positionInBlock(), 1);
 
         QTest::keyClicks(editor_, ">");
@@ -354,6 +429,37 @@ private slots:
 
         QCOMPARE(editor_->toPlainText(), QString("```python\n\n```"));
         QCOMPARE(editor_->textCursor().blockNumber(), 1);
+        QCOMPARE(editor_->textCursor().positionInBlock(), 0);
+    }
+
+    void testTildeCodeFenceEnterCreatesMatchingClosingFence()
+    {
+        editor_->setPlainText("~~~python");
+
+        QTextCursor cursor = editor_->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        editor_->setTextCursor(cursor);
+
+        QTest::keyClick(editor_, Qt::Key_Return);
+
+        QCOMPARE(editor_->toPlainText(), QString("~~~python\n\n~~~"));
+        QCOMPARE(editor_->textCursor().blockNumber(), 1);
+        QCOMPARE(editor_->textCursor().positionInBlock(), 0);
+    }
+
+    void testEnterOnBacktickFenceInsideOpenTildeFenceDoesNotAutoClose()
+    {
+        editor_->setPlainText("~~~\n```");
+
+        QTextBlock backtickLine = editor_->document()->findBlockByNumber(1);
+        QTextCursor cursor(editor_->document());
+        cursor.setPosition(backtickLine.position() + qMax(0, backtickLine.length() - 1));
+        editor_->setTextCursor(cursor);
+
+        QTest::keyClick(editor_, Qt::Key_Return);
+
+        QCOMPARE(editor_->toPlainText(), QString("~~~\n```\n"));
+        QCOMPARE(editor_->textCursor().blockNumber(), 2);
         QCOMPARE(editor_->textCursor().positionInBlock(), 0);
     }
 
@@ -687,6 +793,18 @@ private slots:
 
         QCOMPARE(editor_->toPlainText(), QString("\\))"));
         QCOMPARE(editor_->textCursor().positionInBlock(), 2);
+    }
+
+    void testWordCountCountsCjkCharactersIndividually()
+    {
+        editor_->setPlainText(QStringLiteral("你好世界"));
+        QTest::qWait(220);
+        QCOMPARE(editor_->wordCount(), 4);
+        QCOMPARE(editor_->charCount(), 4);
+
+        editor_->setPlainText(QStringLiteral("你好 world"));
+        QTest::qWait(220);
+        QCOMPARE(editor_->wordCount(), 3);
     }
 
     void testWhiteThemeKeepsImePreeditColorsReadable()
