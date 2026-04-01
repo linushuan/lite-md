@@ -234,6 +234,59 @@ bool hasSameTypeListContextBefore(const QTextBlock &block, bool ordered, int ind
     return prevIndent == indent;
 }
 
+QTextBlock findPreviousOrderedBlockAtOrAboveIndent(const QTextBlock &block,
+                                                    int maxIndent,
+                                                    int *orderedIndent = nullptr)
+{
+    for (QTextBlock prev = block.previous(); prev.isValid(); prev = prev.previous()) {
+        const QString line = prev.text();
+        if (isBlankLine(line)) {
+            continue;
+        }
+
+        const int lineIndent = leadingSpaceCount(line);
+        if (lineIndent > maxIndent) {
+            continue;
+        }
+
+        int localOrderedIndent = 0;
+        if (matchOrderedListLine(line, &localOrderedIndent) && localOrderedIndent <= maxIndent) {
+            if (orderedIndent) {
+                *orderedIndent = localOrderedIndent;
+            }
+            return prev;
+        }
+
+        break;
+    }
+
+    return QTextBlock();
+}
+
+QTextBlock findNextOrderedSiblingBlockAtIndent(const QTextBlock &block, int indent)
+{
+    for (QTextBlock next = block.next(); next.isValid(); next = next.next()) {
+        const QString line = next.text();
+        if (isBlankLine(line)) {
+            continue;
+        }
+
+        const int lineIndent = leadingSpaceCount(line);
+        if (lineIndent > indent) {
+            continue;
+        }
+
+        int orderedIndent = 0;
+        if (matchOrderedListLine(line, &orderedIndent) && orderedIndent == indent) {
+            return next;
+        }
+
+        break;
+    }
+
+    return QTextBlock();
+}
+
 bool hasNonSpaceTextAfterCursorInBlock(const QTextCursor &cursor)
 {
     const QString line = cursor.block().text();
@@ -641,6 +694,19 @@ void MdEditor::resizeEvent(QResizeEvent *event)
 
 void MdEditor::keyPressEvent(QKeyEvent *event)
 {
+    if (imeComposing_) {
+        if (event->key() == Qt::Key_Return ||
+            event->key() == Qt::Key_Enter ||
+            event->key() == Qt::Key_Tab ||
+            event->key() == Qt::Key_Backtab) {
+            event->accept();
+            return;
+        }
+
+        QPlainTextEdit::keyPressEvent(event);
+        return;
+    }
+
     if (handleAutoCloseKey(event)) {
         return;
     }
@@ -968,6 +1034,7 @@ void MdEditor::inputMethodEvent(QInputMethodEvent *event)
 {
     // Pause highlighter during IME composition to avoid excessive rehighlights
     const bool composing = !event->preeditString().isEmpty();
+    imeComposing_ = composing;
     highlighter_->setEnabled(!composing);
 
     if (composing) {
@@ -1196,34 +1263,35 @@ void MdEditor::renumberOrderedListsAroundBlock(const QTextBlock &anchorBlock)
         }
     }
 
-    QTextBlock start = seed;
-    while (start.previous().isValid()) {
-        const QTextBlock prev = start.previous();
-        const QString prevText = prev.text();
-        if (isBlankLine(prevText) || matchOrderedListLine(prevText)) {
-            start = prev;
-            continue;
-        }
-        break;
+    int seedIndent = 0;
+    if (!matchOrderedListLine(seed.text(), &seedIndent)) {
+        return;
     }
 
-    QTextBlock end = seed;
-    while (end.next().isValid()) {
-        const QTextBlock next = end.next();
-        const QString nextText = next.text();
-        if (isBlankLine(nextText) || matchOrderedListLine(nextText)) {
-            end = next;
-            continue;
+    int rootIndent = seedIndent;
+    QTextBlock firstItem = seed;
+    while (true) {
+        int prevIndent = 0;
+        const QTextBlock prevItem = findPreviousOrderedBlockAtOrAboveIndent(firstItem, rootIndent, &prevIndent);
+        if (!prevItem.isValid()) {
+            break;
         }
-        break;
+        firstItem = prevItem;
+        rootIndent = prevIndent;
     }
 
-    while (start.isValid() && isBlankLine(start.text())) {
-        if (start == end) {
-            return;
+    QTextBlock lastItem = firstItem;
+    while (true) {
+        const QTextBlock subtreeEnd = findListSubtreeEnd(lastItem);
+        const QTextBlock nextSibling = findNextOrderedSiblingBlockAtIndent(subtreeEnd, rootIndent);
+        if (!nextSibling.isValid()) {
+            break;
         }
-        start = start.next();
+        lastItem = nextSibling;
     }
+
+    QTextBlock start = firstItem;
+    QTextBlock end = findListSubtreeEnd(lastItem);
 
     while (end.isValid() && isBlankLine(end.text())) {
         if (end == start) {

@@ -327,16 +327,63 @@ private slots:
         QVERIFY(BlockParser::isSetextH1Underline("==="));
         QVERIFY(BlockParser::isSetextH1Underline("========"));
         QVERIFY(BlockParser::isSetextH1Underline("   ===="));
+        QVERIFY(BlockParser::isSetextH1Underline("> ===="));
         QVERIFY(!BlockParser::isSetextH1Underline("=="));
 
         QVERIFY(BlockParser::isSetextH2Underline("---"));
         QVERIFY(BlockParser::isSetextH2Underline("--------"));
         QVERIFY(BlockParser::isSetextH2Underline("   -----"));
-        QVERIFY(BlockParser::isSetextH2Underline("***"));
-        QVERIFY(BlockParser::isSetextH2Underline("* * *"));
-        QVERIFY(BlockParser::isSetextH2Underline("- - -"));
+        QVERIFY(BlockParser::isSetextH2Underline("> ---"));
+        QVERIFY(!BlockParser::isSetextH2Underline("***"));
+        QVERIFY(!BlockParser::isSetextH2Underline("* * *"));
+        QVERIFY(!BlockParser::isSetextH2Underline("- - -"));
         QVERIFY(!BlockParser::isSetextH2Underline("--"));
         QVERIFY(!BlockParser::isSetextH2Underline("___"));
+    }
+
+    void testSetextUnderlineForHeadingLineRequiresSameContainer()
+    {
+        bool isH1 = false;
+        bool isH2 = false;
+
+        QVERIFY(BlockParser::isSetextUnderlineForHeadingLine("> heading", "> ---", &isH1, &isH2));
+        QVERIFY(!isH1);
+        QVERIFY(isH2);
+
+        QVERIFY(BlockParser::isSetextUnderlineForHeadingLine("> > heading", "> > ===", &isH1, &isH2));
+        QVERIFY(isH1);
+        QVERIFY(!isH2);
+
+        QVERIFY(!BlockParser::isSetextUnderlineForHeadingLine("> heading", "> > ---", &isH1, &isH2));
+    }
+
+    void testLatexEnvEndMustBeWholeLine()
+    {
+        ContextStack ctx;
+        QVector<BlockToken> tokens;
+
+        QCOMPARE(BlockParser::classify("\\begin{equation}", ctx, tokens), BlockType::LatexEnvStart);
+        QVERIFY(ctx.inLatex());
+
+        QCOMPARE(BlockParser::classify("x = \\end{equation} + 1", ctx, tokens), BlockType::LatexEnvBody);
+        QVERIFY(ctx.inLatex());
+
+        QCOMPARE(BlockParser::classify("\\end{equation}", ctx, tokens), BlockType::LatexEnvEnd);
+        QVERIFY(!ctx.inLatex());
+    }
+
+    void testATXHeadingTrimsTrailingHashFence()
+    {
+        int level = 0;
+        int contentStart = 0;
+        int contentEnd = 0;
+
+        QVERIFY(BlockParser::matchATXHeading("## heading ##", level, contentStart, contentEnd));
+        QCOMPARE(level, 2);
+        QCOMPARE(QString("## heading ##").mid(contentStart, contentEnd - contentStart), QString("heading"));
+
+        QVERIFY(BlockParser::matchATXHeading("## heading#", level, contentStart, contentEnd));
+        QCOMPARE(QString("## heading#").mid(contentStart, contentEnd - contentStart), QString("heading#"));
     }
 
     void testListItemCheckboxToken()

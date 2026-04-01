@@ -78,6 +78,20 @@ private slots:
         QCOMPARE(tokens[4].type, TokenType::LinkBracket);
     }
 
+    void testLinkUrlSupportsEscapedClosingParen()
+    {
+        ContextStack ctx;
+        QVector<InlineToken> tokens;
+        const QString text = QStringLiteral("[link](url\\)with-paren)");
+        InlineParser::parse(text, 0, ctx, tokens);
+
+        QVERIFY(tokens.size() >= 5);
+        QCOMPARE(tokens[3].type, TokenType::LinkUrl);
+        QCOMPARE(text.mid(tokens[3].start, tokens[3].length), QStringLiteral("url\\)with-paren"));
+        QCOMPARE(tokens[4].type, TokenType::LinkBracket);
+        QCOMPARE(tokens[4].start, text.length() - 1);
+    }
+
     void testAngleAutoLink()
     {
         ContextStack ctx;
@@ -224,6 +238,24 @@ private slots:
         QCOMPARE(tokens[2].type, TokenType::StrikeMarker);
     }
 
+    void testStrikethroughRejectsInvalidFlanking()
+    {
+        ContextStack ctx;
+        QVector<InlineToken> tokens;
+
+        InlineParser::parse("~~ strike~~", 0, ctx, tokens);
+        for (const auto &t : tokens) {
+            QVERIFY(t.type != TokenType::Strikethrough);
+            QVERIFY(t.type != TokenType::StrikeMarker);
+        }
+
+        InlineParser::parse("~~strike ~~", 0, ctx, tokens);
+        for (const auto &t : tokens) {
+            QVERIFY(t.type != TokenType::Strikethrough);
+            QVERIFY(t.type != TokenType::StrikeMarker);
+        }
+    }
+
     void testEscape()
     {
         ContextStack ctx;
@@ -248,6 +280,18 @@ private slots:
             if (t.type == TokenType::HardBreakSpace) found = true;
         }
         QVERIFY(found);
+    }
+
+    void testHardBreakSpaceAtOffsetZero()
+    {
+        ContextStack ctx;
+        QVector<InlineToken> tokens;
+        InlineParser::parse("  ", 0, ctx, tokens);
+
+        QVERIFY(tokens.size() >= 1);
+        QCOMPARE(tokens[0].type, TokenType::HardBreakSpace);
+        QCOMPARE(tokens[0].start, 0);
+        QCOMPARE(tokens[0].length, 2);
     }
 
     void testHardBreakBackslash()

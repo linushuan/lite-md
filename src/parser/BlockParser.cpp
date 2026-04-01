@@ -142,6 +142,30 @@ PrefixInfo parseContainerPrefix(const QString &line, int blockquoteLimit, bool p
     return info;
 }
 
+bool setextH1UnderlineContentMatches(const QString &content)
+{
+    static QRegularExpression re(R"(^ {0,3}={3,}\s*$)");
+    return re.match(content).hasMatch();
+}
+
+bool setextH2UnderlineContentMatches(const QString &content)
+{
+    // Only classic dash underlines remain setext H2 markers.
+    static QRegularExpression re(R"(^ {0,3}-{3,}\s*$)");
+    return re.match(content).hasMatch();
+}
+
+bool hasSameContainerShapeForSetext(const PrefixInfo &a, const PrefixInfo &b)
+{
+    if (a.blockquoteDepth != b.blockquoteDepth || a.hasList != b.hasList) {
+        return false;
+    }
+    if (!a.hasList) {
+        return true;
+    }
+    return (a.listEnd - a.listStart) == (b.listEnd - b.listStart);
+}
+
 const QRegularExpression &tableSeparatorRegex()
 {
     static const QRegularExpression re(
@@ -231,7 +255,7 @@ bool BlockParser::classifyInOpenContext(const QString &text,
 
         appendContainerMarkers(prefix, tokens);
 
-        if (content.contains(endPattern)) {
+        if (content.trimmed() == endPattern) {
             tokens.append({contentOffset, contentLen, TokenType::LatexBeginEnd});
             ctx.pop();
             type = BlockType::LatexEnvEnd;
@@ -693,16 +717,51 @@ bool BlockParser::isCodeFenceStartLine(const QString &text)
 
 bool BlockParser::isSetextH1Underline(const QString &nextLine)
 {
-    static QRegularExpression re(R"(^ {0,3}={3,}\s*$)");
-    return re.match(nextLine).hasMatch();
+    const PrefixInfo prefix = parseContainerPrefix(nextLine, -1, true);
+    return setextH1UnderlineContentMatches(nextLine.mid(prefix.contentOffset));
 }
 
 bool BlockParser::isSetextH2Underline(const QString &nextLine)
 {
-    // Accept classic "---" plus requested HR-style variants for heading underline
-    // behavior: "***", "- - -", "* * *".
-    static QRegularExpression re(R"(^ {0,3}([-*])(\s*\1){2,}\s*$)");
-    return re.match(nextLine).hasMatch();
+    const PrefixInfo prefix = parseContainerPrefix(nextLine, -1, true);
+    return setextH2UnderlineContentMatches(nextLine.mid(prefix.contentOffset));
+}
+
+bool BlockParser::isSetextUnderlineForHeadingLine(const QString &headingLine,
+                                                  const QString &underlineLine,
+                                                  bool *isH1,
+                                                  bool *isH2)
+{
+    if (isH1) {
+        *isH1 = false;
+    }
+    if (isH2) {
+        *isH2 = false;
+    }
+
+    const PrefixInfo headingPrefix = parseContainerPrefix(headingLine, -1, true);
+    const PrefixInfo underlinePrefix = parseContainerPrefix(underlineLine, -1, true);
+    if (!hasSameContainerShapeForSetext(headingPrefix, underlinePrefix)) {
+        return false;
+    }
+
+    const QString headingContent = headingLine.mid(headingPrefix.contentOffset);
+    if (headingContent.trimmed().isEmpty()) {
+        return false;
+    }
+
+    const QString underlineContent = underlineLine.mid(underlinePrefix.contentOffset);
+    const bool localH1 = setextH1UnderlineContentMatches(underlineContent);
+    const bool localH2 = setextH2UnderlineContentMatches(underlineContent);
+
+    if (isH1) {
+        *isH1 = localH1;
+    }
+    if (isH2) {
+        *isH2 = localH2;
+    }
+
+    return localH1 || localH2;
 }
 
 bool BlockParser::matchCodeFenceStart(const QString &text, QChar &fenceChar, int &fenceLen, int &indent, QString &lang)
@@ -746,7 +805,27 @@ bool BlockParser::matchATXHeading(const QString &text, int &level, int &contentS
 
     level = m.captured(1).length();
     contentStart = m.capturedEnd(0);
-    contentEnd = static_cast<int>(text.length());
+
+    int end = static_cast<int>(text.length());
+    while (end > contentStart && text[end - 1].isSpace()) {
+        --end;
+    }
+
+    int hashRunStart = end;
+    while (hashRunStart > contentStart && text[hashRunStart - 1] == QLatin1Char('#')) {
+        --hashRunStart;
+    }
+
+    if (hashRunStart < end &&
+        hashRunStart > contentStart &&
+        text[hashRunStart - 1].isSpace()) {
+        end = hashRunStart - 1;
+        while (end > contentStart && text[end - 1].isSpace()) {
+            --end;
+        }
+    }
+
+    contentEnd = end;
     return true;
 }
 

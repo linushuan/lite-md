@@ -83,6 +83,10 @@ public:
 
     static bool isSetextH1Underline(const QString &nextLine);
     static bool isSetextH2Underline(const QString &nextLine);
+    static bool isSetextUnderlineForHeadingLine(const QString &headingLine,
+                                                const QString &underlineLine,
+                                                bool *isH1 = nullptr,
+                                                bool *isH2 = nullptr);
 
     static bool matchCodeFenceStart(const QString &text, QChar &fenceChar, int &fenceLen, int &indent, QString &lang);
     static bool matchATXHeading(const QString &text, int &level, int &contentStart, int &contentEnd);

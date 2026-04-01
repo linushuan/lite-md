@@ -2,11 +2,13 @@
 // SPDX-FileCopyrightText: 2026 linushuan
 
 #include <QTest>
+#include <QCoreApplication>
 #include <QTextCursor>
 #include <QTextBlock>
 #include <QFontInfo>
 #include <QPalette>
 #include <QColor>
+#include <QInputMethodEvent>
 
 #include "editor/MdEditor.h"
 #include "config/Settings.h"
@@ -59,6 +61,23 @@ private slots:
         QCOMPARE(lines.value(1), QString("2. "));
     }
 
+    void testOrderedListEnterAfterNestedChildKeepsSiblingNumbering()
+    {
+        editor_->setPlainText("1. adfasdf\n    - asdfa\n2. asfsdf");
+
+        QTextCursor cursor = editor_->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        editor_->setTextCursor(cursor);
+
+        QTest::keyClick(editor_, Qt::Key_Return);
+
+        const QStringList lines = editor_->toPlainText().split('\n');
+        QCOMPARE(lines.value(0), QString("1. adfasdf"));
+        QCOMPARE(lines.value(1), QString("    - asdfa"));
+        QCOMPARE(lines.value(2), QString("2. asfsdf"));
+        QCOMPARE(lines.value(3), QString("3. "));
+    }
+
     void testOrderedEmptyStarterEnterAutoIncrement()
     {
         editor_->setPlainText("1. ");
@@ -87,6 +106,48 @@ private slots:
         const QStringList lines = editor_->toPlainText().split('\n');
         QCOMPARE(lines.value(0), QString("- item"));
         QCOMPARE(lines.value(1), QString(""));
+    }
+
+    void testImePreeditEnterDoesNotTriggerListAutocomplete()
+    {
+        editor_->setPlainText("1. item");
+
+        QTextCursor cursor = editor_->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        editor_->setTextCursor(cursor);
+
+        QInputMethodEvent preeditEvent(QStringLiteral("zhong"), {});
+        QCoreApplication::sendEvent(editor_, &preeditEvent);
+
+        QTest::keyClick(editor_, Qt::Key_Return);
+        QCOMPARE(editor_->toPlainText(), QString("1. item"));
+
+        QInputMethodEvent commitEvent(QString(), {});
+        commitEvent.setCommitString(QStringLiteral("中"));
+        QCoreApplication::sendEvent(editor_, &commitEvent);
+
+        QCOMPARE(editor_->toPlainText(), QString("1. item中"));
+    }
+
+    void testImePreeditTabDoesNotTriggerListIndent()
+    {
+        editor_->setPlainText("- ");
+
+        QTextCursor cursor = editor_->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        editor_->setTextCursor(cursor);
+
+        QInputMethodEvent preeditEvent(QStringLiteral("a"), {});
+        QCoreApplication::sendEvent(editor_, &preeditEvent);
+
+        QTest::keyClick(editor_, Qt::Key_Tab);
+        QCOMPARE(editor_->toPlainText(), QString("- "));
+
+        QInputMethodEvent commitEvent(QString(), {});
+        commitEvent.setCommitString(QStringLiteral("阿"));
+        QCoreApplication::sendEvent(editor_, &commitEvent);
+
+        QCOMPARE(editor_->toPlainText(), QString("- 阿"));
     }
 
     void testSecondEnterOnEmptyUnorderedListExitsList()

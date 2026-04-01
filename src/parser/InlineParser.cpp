@@ -271,17 +271,18 @@ bool InlineParser::tryLink(State &s)
     int textStart = s.pos + 1;
     int textEnd = -1;
     for (int i = textStart; i < s.end; ++i) {
+        if (s.text[i] == QLatin1Char('\\') && i + 1 < s.end) {
+            ++i;
+            continue;
+        }
         if (s.text[i] == '[') return false;  // Nested [, bail
         if (s.text[i] == ']') { textEnd = i; break; }
     }
     if (textEnd < 0 || textEnd + 1 >= s.end || s.text[textEnd + 1] != '(') return false;
 
     // Find )
-    int urlStart = textEnd + 2;
-    int urlEnd = -1;
-    for (int i = urlStart; i < s.end; ++i) {
-        if (s.text[i] == ')') { urlEnd = i; break; }
-    }
+    const int urlStart = textEnd + 2;
+    const int urlEnd = findUnescapedChar(s.text, urlStart, s.end, QLatin1Char(')'));
     if (urlEnd < 0) return false;
 
     s.tokens.append({s.pos, 1, TokenType::LinkBracket});           // [
@@ -408,11 +409,15 @@ bool InlineParser::tryStrikethrough(State &s)
 {
     if (s.pos + 1 >= s.end) return false;
     if (s.text[s.pos] != '~' || s.text[s.pos + 1] != '~') return false;
+    if (!isLeftFlanking(s.text, s.pos, 2)) return false;
 
     // Find closing ~~
-    int contentStart = s.pos + 2;
+    const int contentStart = s.pos + 2;
     for (int i = contentStart; i < s.end - 1; ++i) {
-        if (s.text[i] == '~' && s.text[i + 1] == '~') {
+        if (s.text[i] == QLatin1Char('~') &&
+            s.text[i + 1] == QLatin1Char('~') &&
+            i > contentStart &&
+            isRightFlanking(s.text, i, 2)) {
             s.tokens.append({s.pos, 2, TokenType::StrikeMarker});
             s.tokens.append({contentStart, i - contentStart, TokenType::Strikethrough});
             s.tokens.append({i, 2, TokenType::StrikeMarker});
@@ -474,10 +479,10 @@ bool InlineParser::tryHardBreak(State &s)
 {
     // Only at end of line
     // Trailing 2+ spaces
-    if (s.text[s.pos] == ' ' && s.pos >= 1) {
+    if (s.text[s.pos] == QLatin1Char(' ')) {
         int spaceStart = s.pos;
         int spaceEnd = s.pos;
-        while (spaceEnd < s.end && s.text[spaceEnd] == ' ')
+        while (spaceEnd < s.end && s.text[spaceEnd] == QLatin1Char(' '))
             spaceEnd++;
         if (spaceEnd == s.end && (spaceEnd - spaceStart) >= 2) {
             s.tokens.append({spaceStart, spaceEnd - spaceStart, TokenType::HardBreakSpace});

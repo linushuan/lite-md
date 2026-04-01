@@ -58,7 +58,8 @@ It focuses on fast typing, stable highlighting, and predictable editing behavior
 	- `***`, `- - -`, and `* * *` are not treated as lists on Enter.
 - Setext heading underline variants:
 	- `===` is always rendered as a visible underline marker.
-	- `---`, `***`, `- - -`, and `* * *` apply setext H2 heading behavior when they follow a non-empty text line.
+	- `---` (3+ dashes) applies setext H2 heading behavior when it follows a non-empty text line in the same container context (including same-level blockquotes).
+	- `***`, `- - -`, and `* * *` remain horizontal rules and do not apply setext H2 behavior.
 
 Complete behavior details are documented in [spec.md](spec.md).
 

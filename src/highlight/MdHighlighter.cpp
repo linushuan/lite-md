@@ -165,14 +165,13 @@ void MdHighlighter::highlightBlock(const QString &text)
         }
     }
 
-    // Check for setext heading (lookahead)
-    bool isSetextH1 = false, isSetextH2 = false;
+    // Check for setext heading (lookahead) in the same container shape.
+    bool isSetextH1 = false;
+    bool isSetextH2 = false;
     if (ctx.topState() == BlockState::Normal) {
-        QTextBlock nextBlock = currentBlock().next();
+        const QTextBlock nextBlock = currentBlock().next();
         if (nextBlock.isValid()) {
-            QString nextLine = nextBlock.text();
-            isSetextH1 = BlockParser::isSetextH1Underline(nextLine);
-            isSetextH2 = BlockParser::isSetextH2Underline(nextLine);
+            BlockParser::isSetextUnderlineForHeadingLine(text, nextBlock.text(), &isSetextH1, &isSetextH2);
         }
     }
 
@@ -185,9 +184,9 @@ void MdHighlighter::highlightBlock(const QString &text)
     QVector<BlockToken> blockTokens;
     BlockType blockType = BlockParser::classify(text, ctx, blockTokens, prevLine, nextLine);
 
-    auto computeContentOffset = [&]() {
+    auto computeContentOffset = [&](const QVector<BlockToken> &tokens) {
         int offset = 0;
-        for (const auto &token : blockTokens) {
+        for (const auto &token : tokens) {
             if (token.type == TokenType::BlockquoteMark || token.type == TokenType::ListBullet) {
                 offset = qMax(offset, token.start + token.length);
             }
@@ -195,14 +194,37 @@ void MdHighlighter::highlightBlock(const QString &text)
         return qBound(0, offset, textLen);
     };
 
+    auto extractContainerTokens = [&](const QVector<BlockToken> &tokens) {
+        QVector<BlockToken> containerTokens;
+        for (const auto &token : tokens) {
+            if (token.type == TokenType::BlockquoteMark || token.type == TokenType::ListBullet) {
+                containerTokens.append(token);
+            }
+        }
+        return containerTokens;
+    };
+
     // Override for setext heading
-    if (isSetextH1 && blockType == BlockType::Normal) {
-        blockTokens.clear();
-        blockTokens.append({0, textLen, TokenType::HeadingH1});
+    const bool canPromoteToSetextHeading =
+        blockType == BlockType::Normal ||
+        blockType == BlockType::Blockquote ||
+        blockType == BlockType::ListItem;
+
+    if (isSetextH1 && canPromoteToSetextHeading) {
+        QVector<BlockToken> containerTokens = extractContainerTokens(blockTokens);
+        const int contentOffset = computeContentOffset(containerTokens);
+        blockTokens = containerTokens;
+        if (contentOffset < textLen) {
+            blockTokens.append({contentOffset, textLen - contentOffset, TokenType::HeadingH1});
+        }
         blockType = BlockType::Heading;
-    } else if (isSetextH2 && blockType == BlockType::Normal) {
-        blockTokens.clear();
-        blockTokens.append({0, textLen, TokenType::HeadingH2});
+    } else if (isSetextH2 && canPromoteToSetextHeading) {
+        QVector<BlockToken> containerTokens = extractContainerTokens(blockTokens);
+        const int contentOffset = computeContentOffset(containerTokens);
+        blockTokens = containerTokens;
+        if (contentOffset < textLen) {
+            blockTokens.append({contentOffset, textLen - contentOffset, TokenType::HeadingH2});
+        }
         blockType = BlockType::Heading;
     }
     // Mark setext underline itself. Only do this for normal/HR lines so we do
@@ -214,38 +236,82 @@ void MdHighlighter::highlightBlock(const QString &text)
         // Requested behavior: "===" should be visibly rendered even when standalone.
         shouldRenderSetextMarker = true;
     } else if (isSetextH2Underline) {
-        // Keep "---"/"***" HR behavior on standalone lines, but render as heading
-        // underline when they follow a non-empty text line.
+        bool prevIsH1 = false;
+        bool prevIsH2 = false;
         const QTextBlock prevBlock = currentBlock().previous();
-        shouldRenderSetextMarker = prevBlock.isValid() && !prevBlock.text().trimmed().isEmpty();
+        shouldRenderSetextMarker =
+            prevBlock.isValid() &&
+            BlockParser::isSetextUnderlineForHeadingLine(prevBlock.text(), text, &prevIsH1, &prevIsH2) &&
+            prevIsH2;
     }
 
     if (shouldRenderSetextMarker &&
         (blockType == BlockType::Normal || blockType == BlockType::HR) &&
         ctx.topState() == BlockState::Normal) {
-        QVector<BlockToken> containerTokens;
-        for (const auto &token : blockTokens) {
-            if (token.type == TokenType::BlockquoteMark || token.type == TokenType::ListBullet) {
-                containerTokens.append(token);
-            }
-        }
+        QVector<BlockToken> containerTokens = extractContainerTokens(blockTokens);
 
         blockTokens = containerTokens;
-        const int contentOffset = computeContentOffset();
+        const int contentOffset = computeContentOffset(blockTokens);
         if (contentOffset < textLen) {
             blockTokens.append({contentOffset, textLen - contentOffset, TokenType::SetextMarker});
         }
     }
 
+    bool inBlockquoteContainer = false;
+    for (const auto &token : blockTokens) {
+        if (token.type == TokenType::BlockquoteMark) {
+            inBlockquoteContainer = true;
+            break;
+        }
+    }
+
+    QColor blockquoteBackground;
+    if (inBlockquoteContainer && formats_.contains(TokenType::BlockquoteBody)) {
+        const QTextCharFormat blockquoteFmt = formats_[TokenType::BlockquoteBody];
+        if (blockquoteFmt.background().style() != Qt::NoBrush) {
+            blockquoteBackground = blockquoteFmt.background().color();
+        }
+    }
+
+    auto applyFormatWithBlockquoteBackground = [&](int start, int length, const QTextCharFormat &baseFmt) {
+        auto dimColorLightness = [](const QColor &color, qreal factor) {
+            QColor hsl = color.toHsl();
+            float h = 0.0f;
+            float s = 0.0f;
+            float l = 0.0f;
+            float a = 1.0f;
+            hsl.getHslF(&h, &s, &l, &a);
+            l = static_cast<float>(qBound<qreal>(0.0, l * factor, 1.0));
+            hsl.setHslF(h, s, l, a);
+            return hsl.toRgb();
+        };
+
+        QTextCharFormat fmt = baseFmt;
+        if (inBlockquoteContainer && blockquoteBackground.isValid()) {
+            if (fmt.background().style() == Qt::NoBrush) {
+                fmt.setBackground(blockquoteBackground);
+            } else {
+                const QColor tokenBackground = fmt.background().color();
+                if (tokenBackground.isValid()) {
+                    if (tokenBackground != blockquoteBackground) {
+                        // Keep token-local background hue, but reduce brightness in quotes.
+                        fmt.setBackground(dimColorLightness(tokenBackground, 0.78));
+                    }
+                }
+            }
+        }
+        setFormat(start, length, fmt);
+    };
+
     // 3. Apply block token formats
     for (const auto &token : blockTokens) {
         if (formats_.contains(token.type)) {
-            setFormat(token.start, token.length, formats_[token.type]);
+            applyFormatWithBlockquoteBackground(token.start, token.length, formats_[token.type]);
         }
     }
 
     if (blockType == BlockType::Table) {
-        const int tableOffset = computeContentOffset();
+        const int tableOffset = computeContentOffset(blockTokens);
         const int tableLength = textLen - tableOffset;
         const QString tableText = text.mid(tableOffset);
         const bool isSeparator = BlockParser::matchTableSeparator(tableText);
@@ -261,17 +327,17 @@ void MdHighlighter::highlightBlock(const QString &text)
 
         if (tableLength > 0) {
             if (isSeparator) {
-                setFormat(tableOffset, tableLength, formats_[TokenType::TableSeparator]);
+                applyFormatWithBlockquoteBackground(tableOffset, tableLength, formats_[TokenType::TableSeparator]);
             } else if (isHeader) {
-                setFormat(tableOffset, tableLength, formats_[TokenType::TableHeader]);
+                applyFormatWithBlockquoteBackground(tableOffset, tableLength, formats_[TokenType::TableHeader]);
             } else {
-                setFormat(tableOffset, tableLength, formats_[TokenType::TableCell]);
+                applyFormatWithBlockquoteBackground(tableOffset, tableLength, formats_[TokenType::TableCell]);
             }
         }
 
         for (const auto &token : blockTokens) {
             if (token.type == TokenType::TablePipe && formats_.contains(TokenType::TablePipe)) {
-                setFormat(token.start, token.length, formats_[TokenType::TablePipe]);
+                applyFormatWithBlockquoteBackground(token.start, token.length, formats_[TokenType::TablePipe]);
             }
         }
     }
@@ -282,7 +348,7 @@ void MdHighlighter::highlightBlock(const QString &text)
         blockType != BlockType::CodeFenceEnd &&
         blockType != BlockType::HtmlComment) {
 
-        const int contentOffset = computeContentOffset();
+        const int contentOffset = computeContentOffset(blockTokens);
 
         if (blockType == BlockType::LatexDisplayBody ||
             blockType == BlockType::LatexEnvBody) {
@@ -294,7 +360,7 @@ void MdHighlighter::highlightBlock(const QString &text)
             }
             for (const auto &token : latexTokens) {
                 if (formats_.contains(token.type))
-                    setFormat(token.start, token.length, formats_[token.type]);
+                    applyFormatWithBlockquoteBackground(token.start, token.length, formats_[token.type]);
             }
         } else if (blockType != BlockType::LatexDisplayStart &&
                    blockType != BlockType::LatexDisplayEnd &&
@@ -325,7 +391,7 @@ void MdHighlighter::highlightBlock(const QString &text)
                 if (blockType == BlockType::Heading) {
                     fmt.setFontPointSize(baseFontSize_ * headingScale);
                 }
-                setFormat(token.start, token.length, fmt);
+                applyFormatWithBlockquoteBackground(token.start, token.length, fmt);
             }
         }
     }

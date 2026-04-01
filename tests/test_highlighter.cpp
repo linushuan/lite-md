@@ -169,9 +169,7 @@ private slots:
         QTest::addColumn<QString>("underline");
 
         QTest::newRow("dash-compact") << QString("---");
-        QTest::newRow("dash-spaced") << QString("- - -");
-        QTest::newRow("star-compact") << QString("***");
-        QTest::newRow("star-spaced") << QString("* * *");
+        QTest::newRow("dash-long") << QString("------");
     }
 
     void testSetextH2VariantHeadingLineUpdatesWhenUnderlineTypedLater()
@@ -199,9 +197,8 @@ private slots:
     {
         QTest::addColumn<QString>("underline");
 
-        QTest::newRow("dash-spaced") << QString("- - -");
-        QTest::newRow("star-compact") << QString("***");
-        QTest::newRow("star-spaced") << QString("* * *");
+        QTest::newRow("dash-compact") << QString("---");
+        QTest::newRow("dash-long") << QString("------");
     }
 
     void testSetextH2VariantUnderlineLineUsesMarkerFormat()
@@ -237,6 +234,96 @@ private slots:
         const QTextCharFormat fmt = firstCharFormat(doc, 0);
         QVERIFY(fmt.isValid());
         QCOMPARE(fmt.foreground().color(), theme.heading[1]);
+    }
+
+    void testHrVariantsAfterTextDoNotPromoteSetextHeading_data()
+    {
+        QTest::addColumn<QString>("underline");
+
+        QTest::newRow("star-compact") << QString("***");
+        QTest::newRow("dash-spaced") << QString("- - -");
+        QTest::newRow("star-spaced") << QString("* * *");
+    }
+
+    void testHrVariantsAfterTextDoNotPromoteSetextHeading()
+    {
+        QFETCH(QString, underline);
+
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        doc.setPlainText("Title\n" + underline);
+        highlighter.rehighlight();
+
+        const QTextCharFormat headingFmt = firstCharFormat(doc, 0);
+        if (headingFmt.isValid()) {
+            QVERIFY(headingFmt.foreground().color() != theme.heading[1]);
+        }
+
+        const QTextCharFormat underlineFmt = firstCharFormat(doc, 1);
+        QVERIFY(underlineFmt.isValid());
+        QCOMPARE(underlineFmt.foreground().color(), theme.hrFg);
+    }
+
+    void testSetextInBlockquoteUsesSameLevelContainer()
+    {
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        doc.setPlainText("> Title\n> ---");
+        highlighter.rehighlight();
+
+        const QTextBlock headingBlock = doc.findBlockByNumber(0);
+        const QTextCharFormat headingFmt = formatAt(headingBlock, 2);
+        QVERIFY(headingFmt.isValid());
+        QCOMPARE(headingFmt.foreground().color(), theme.heading[1]);
+
+        const QTextBlock underlineBlock = doc.findBlockByNumber(1);
+        const QTextCharFormat underlineFmt = formatAt(underlineBlock, 2);
+        QVERIFY(underlineFmt.isValid());
+        QCOMPARE(underlineFmt.foreground().color(), theme.markerFg);
+    }
+
+    void testSetextInNestedBlockquoteUsesSameDepth()
+    {
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        doc.setPlainText("> > Title\n> > ---");
+        highlighter.rehighlight();
+
+        const QTextBlock headingBlock = doc.findBlockByNumber(0);
+        const QTextCharFormat headingFmt = formatAt(headingBlock, 4);
+        QVERIFY(headingFmt.isValid());
+        QCOMPARE(headingFmt.foreground().color(), theme.heading[1]);
+
+        const QTextBlock underlineBlock = doc.findBlockByNumber(1);
+        const QTextCharFormat underlineFmt = formatAt(underlineBlock, 4);
+        QVERIFY(underlineFmt.isValid());
+        QCOMPARE(underlineFmt.foreground().color(), theme.markerFg);
+    }
+
+    void testSetextInBlockquoteDoesNotCrossDepth()
+    {
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        doc.setPlainText("> Title\n> > ---");
+        highlighter.rehighlight();
+
+        const QTextBlock headingBlock = doc.findBlockByNumber(0);
+        const QTextCharFormat headingFmt = formatAt(headingBlock, 2);
+        QVERIFY(headingFmt.isValid());
+        QCOMPARE(headingFmt.foreground().color(), theme.blockquoteFg);
+
+        const QTextBlock underlineBlock = doc.findBlockByNumber(1);
+        const QTextCharFormat underlineFmt = formatAt(underlineBlock, 4);
+        QVERIFY(underlineFmt.isValid());
+        QCOMPARE(underlineFmt.foreground().color(), theme.hrFg);
     }
 
     void testSetextH1HeadingLineUpdatesWhenUnderlineTypedLater()
@@ -350,6 +437,43 @@ private slots:
         QVERIFY(markBg != theme.currentLineBg);
         QVERIFY(colorDistance(markBg, theme.background) >= 42);
         QVERIFY(colorDistance(markBg, theme.currentLineBg) >= 36);
+    }
+
+    void testBlockquoteListAndBoldKeepQuoteBackground()
+    {
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        doc.setPlainText("> - **bold** tail");
+        highlighter.rehighlight();
+
+        const QTextBlock block = doc.findBlockByNumber(0);
+        const QTextCharFormat quoteFmt = formatAt(block, 0);
+        QVERIFY(quoteFmt.isValid());
+        QVERIFY(quoteFmt.background().style() != Qt::NoBrush);
+
+        const QColor quoteBg = quoteFmt.background().color();
+        QCOMPARE(formatAt(block, 2).background().color(), quoteBg);   // list marker '-'
+        QCOMPARE(formatAt(block, 6).background().color(), quoteBg);   // bold content 'b'
+        QCOMPARE(formatAt(block, 13).background().color(), quoteBg);  // plain tail text 't'
+    }
+
+    void testBlockquoteOwnedBackgroundDimsLightness()
+    {
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        doc.setPlainText("> ==mark==");
+        highlighter.rehighlight();
+
+        const QTextBlock block = doc.findBlockByNumber(0);
+        const QColor markBg = formatAt(block, 4).background().color();
+
+        QVERIFY(markBg.isValid());
+        QVERIFY(markBg != theme.searchHighlightBg);
+        QVERIFY(markBg.lightness() < theme.searchHighlightBg.lightness());
     }
 
     void testStrikethroughUsesStrikeOutFont()
