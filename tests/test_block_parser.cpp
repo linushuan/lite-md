@@ -112,12 +112,27 @@ private slots:
         QCOMPARE(BlockParser::classify("* * *", ctx, tokens), BlockType::HR);
     }
 
-    void testTable()
+    void testTableRequiresSeparatorContext()
     {
         ContextStack ctx;
         QVector<BlockToken> tokens;
 
-        QCOMPARE(BlockParser::classify("| col1 | col2 |", ctx, tokens), BlockType::Table);
+        QCOMPARE(BlockParser::classify("| col1 | col2 |", ctx, tokens), BlockType::Normal);
+        QCOMPARE(
+            BlockParser::classify("| col1 | col2 |", ctx, tokens, QString(), "| --- | --- |"),
+            BlockType::Table);
+        QCOMPARE(
+            BlockParser::classify("| --- | --- |", ctx, tokens, "| col1 | col2 |", "| v1 | v2 |"),
+            BlockType::Table);
+        QCOMPARE(ctx.topState(), BlockState::Table);
+        QCOMPARE(BlockParser::classify("| v1 | v2 |", ctx, tokens), BlockType::Table);
+        QCOMPARE(BlockParser::classify("plain text", ctx, tokens), BlockType::Normal);
+        QVERIFY(!ctx.inTable());
+    }
+
+    void testTable()
+    {
+        testTableRequiresSeparatorContext();
     }
 
     void testSinglePipeTextIsNotTable()
@@ -127,6 +142,14 @@ private slots:
 
         QCOMPARE(BlockParser::classify("a | b", ctx, tokens), BlockType::Normal);
         QCOMPARE(BlockParser::classify("plain|text", ctx, tokens), BlockType::Normal);
+    }
+
+    void testShellPipelineIsNotTableWithoutSeparatorContext()
+    {
+        ContextStack ctx;
+        QVector<BlockToken> tokens;
+
+        QCOMPARE(BlockParser::classify("cmd | grep foo | head -n 1", ctx, tokens), BlockType::Normal);
     }
 
     void testLatexDisplayStart()

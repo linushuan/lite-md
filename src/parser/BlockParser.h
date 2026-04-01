@@ -68,7 +68,9 @@ public:
     static BlockType classify(
         const QString       &text,
         ContextStack        &ctx,
-        QVector<BlockToken> &tokens
+        QVector<BlockToken> &tokens,
+        const QString       &prevLine = QString(),
+        const QString       &nextLine = QString()
     );
 
     static bool parseOrderedListLine(const QString &text, OrderedListLineMatch *match = nullptr);
@@ -85,11 +87,16 @@ public:
     static bool matchCodeFenceStart(const QString &text, QChar &fenceChar, int &fenceLen, int &indent, QString &lang);
     static bool matchATXHeading(const QString &text, int &level, int &contentStart, int &contentEnd);
     static bool matchTable(const QString &text);
+    static bool matchTableSeparator(const QString &text);
     static bool matchHR(const QString &text);
 
 private:
     static bool classifyInOpenContext(const QString &text, ContextStack &ctx, QVector<BlockToken> &tokens, BlockType &type);
-    static BlockType classifyInNormalContext(const QString &text, ContextStack &ctx, QVector<BlockToken> &tokens);
+    static BlockType classifyInNormalContext(const QString &text,
+                                             ContextStack &ctx,
+                                             QVector<BlockToken> &tokens,
+                                             const QString &prevLine,
+                                             const QString &nextLine);
 
     static bool matchCodeFenceEnd(const QString &text, QChar fenceChar, int fenceLen);
     static bool matchBlockquote(const QString &text, int &contentOffset);

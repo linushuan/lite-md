@@ -124,7 +124,6 @@ void MdHighlighter::highlightBlock(const QString &text)
 {
     if (!enabled_) return;
     const int textLen = static_cast<int>(text.length());
-    static QRegularExpression tableSeparatorRe(R"(^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$)");
 
     // 1. Restore context from previous block
     ContextStack ctx = restoreContext();
@@ -178,8 +177,13 @@ void MdHighlighter::highlightBlock(const QString &text)
     }
 
     // 2. Classify the block
+    const QTextBlock prevLineBlock = currentBlock().previous();
+    const QTextBlock nextLineBlock = currentBlock().next();
+    const QString prevLine = prevLineBlock.isValid() ? prevLineBlock.text() : QString();
+    const QString nextLine = nextLineBlock.isValid() ? nextLineBlock.text() : QString();
+
     QVector<BlockToken> blockTokens;
-    BlockType blockType = BlockParser::classify(text, ctx, blockTokens);
+    BlockType blockType = BlockParser::classify(text, ctx, blockTokens, prevLine, nextLine);
 
     auto computeContentOffset = [&]() {
         int offset = 0;
@@ -243,11 +247,16 @@ void MdHighlighter::highlightBlock(const QString &text)
     if (blockType == BlockType::Table) {
         const int tableOffset = computeContentOffset();
         const int tableLength = textLen - tableOffset;
-        const bool isSeparator = tableSeparatorRe.match(text).hasMatch();
+        const QString tableText = text.mid(tableOffset);
+        const bool isSeparator = BlockParser::matchTableSeparator(tableText);
         bool isHeader = false;
         if (!isSeparator) {
             QTextBlock next = currentBlock().next();
-            isHeader = next.isValid() && tableSeparatorRe.match(next.text()).hasMatch();
+            if (next.isValid()) {
+                const QString nextText = next.text();
+                const QString nextTableText = nextText.mid(qMin(tableOffset, static_cast<int>(nextText.length())));
+                isHeader = BlockParser::matchTableSeparator(nextTableText);
+            }
         }
 
         if (tableLength > 0) {

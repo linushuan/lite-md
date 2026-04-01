@@ -142,6 +142,13 @@ PrefixInfo parseContainerPrefix(const QString &line, int blockquoteLimit, bool p
     return info;
 }
 
+const QRegularExpression &tableSeparatorRegex()
+{
+    static const QRegularExpression re(
+        R"(^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$)");
+    return re;
+}
+
 void appendContainerMarkers(const PrefixInfo &prefix, QVector<BlockToken> &tokens)
 {
     if (prefix.blockquoteDepth > 0 && prefix.blockquoteEnd > 0) {
@@ -153,14 +160,18 @@ void appendContainerMarkers(const PrefixInfo &prefix, QVector<BlockToken> &token
 }
 }
 
-BlockType BlockParser::classify(const QString &text, ContextStack &ctx, QVector<BlockToken> &tokens)
+BlockType BlockParser::classify(const QString &text,
+                                ContextStack &ctx,
+                                QVector<BlockToken> &tokens,
+                                const QString &prevLine,
+                                const QString &nextLine)
 {
     tokens.clear();
     BlockType type = BlockType::Normal;
     if (classifyInOpenContext(text, ctx, tokens, type)) {
         return type;
     }
-    return classifyInNormalContext(text, ctx, tokens);
+    return classifyInNormalContext(text, ctx, tokens, prevLine, nextLine);
 }
 
 bool BlockParser::classifyInOpenContext(const QString &text,
@@ -232,6 +243,34 @@ bool BlockParser::classifyInOpenContext(const QString &text,
         return true;
     }
 
+    if (ctx.topState() == BlockState::Table) {
+        const ContextFrame frame = ctx.top();
+        const PrefixInfo prefix = parseContainerPrefix(text, frame.depth, frame.listIndent > 0);
+        const int listIndent = prefix.hasList ? (prefix.listEnd - prefix.listStart) : 0;
+        if (prefix.blockquoteDepth != frame.depth || listIndent != frame.listIndent) {
+            ctx.pop();
+            return false;
+        }
+
+        const int contentOffset = prefix.contentOffset;
+        const QString content = text.mid(contentOffset);
+        const int contentLen = static_cast<int>(content.length());
+
+        if (!matchTable(content) && !matchTableSeparator(content)) {
+            ctx.pop();
+            return false;
+        }
+
+        appendContainerMarkers(prefix, tokens);
+        for (int i = 0; i < contentLen; ++i) {
+            if (content[i] == QLatin1Char('|')) {
+                tokens.append({contentOffset + i, 1, TokenType::TablePipe});
+            }
+        }
+        type = BlockType::Table;
+        return true;
+    }
+
     if (ctx.topState() == BlockState::HtmlComment) {
         const ContextFrame frame = ctx.top();
         const PrefixInfo prefix = parseContainerPrefix(text, frame.depth, frame.listIndent > 0);
@@ -260,6 +299,8 @@ namespace {
 // Shared state for normal-context classification helpers.
 struct ClassifyContext {
     const QString &text;
+    const QString &prevLine;
+    const QString &nextLine;
     int            textLen;
     PrefixInfo     prefix;
     int            contentOffset;
@@ -268,7 +309,9 @@ struct ClassifyContext {
     int            firstNonSpace;
 };
 
-ClassifyContext buildClassifyContext(const QString &text)
+ClassifyContext buildClassifyContext(const QString &text,
+                                     const QString &prevLine,
+                                     const QString &nextLine)
 {
     const int textLen = static_cast<int>(text.length());
     const PrefixInfo prefix = parseContainerPrefix(text, -1, true);
@@ -281,12 +324,36 @@ ClassifyContext buildClassifyContext(const QString &text)
         ++firstNonSpace;
     }
 
-    return {text, textLen, prefix, contentOffset, content, contentLen, firstNonSpace};
+    return {text, prevLine, nextLine, textLen, prefix, contentOffset, content, contentLen, firstNonSpace};
 }
 
 int containerListIndent(const PrefixInfo &prefix)
 {
     return prefix.hasList ? (prefix.listEnd - prefix.listStart) : 0;
+}
+
+bool hasSameContainerShape(const PrefixInfo &a, const PrefixInfo &b)
+{
+    if (a.blockquoteDepth != b.blockquoteDepth || a.hasList != b.hasList) {
+        return false;
+    }
+    if (!a.hasList) {
+        return true;
+    }
+    return containerListIndent(a) == containerListIndent(b);
+}
+
+QString adjacentContentIfSameContainer(const QString &line, const PrefixInfo &currentPrefix)
+{
+    if (line.isNull()) {
+        return QString();
+    }
+
+    const PrefixInfo candidatePrefix = parseContainerPrefix(line, -1, true);
+    if (!hasSameContainerShape(candidatePrefix, currentPrefix)) {
+        return QString();
+    }
+    return line.mid(candidatePrefix.contentOffset);
 }
 
 bool tryClassifyHtmlComment(ClassifyContext &c, ContextStack &ctx, QVector<BlockToken> &tokens, BlockType &out)
@@ -435,9 +502,15 @@ bool tryClassifyLatex(ClassifyContext &c, ContextStack &ctx, QVector<BlockToken>
     return false;
 }
 
-bool tryClassifyTable(ClassifyContext &c, QVector<BlockToken> &tokens, BlockType &out)
+bool tryClassifyTable(ClassifyContext &c, ContextStack &ctx, QVector<BlockToken> &tokens, BlockType &out)
 {
-    if (!BlockParser::matchTable(c.content)) {
+    const bool isSeparator = BlockParser::matchTableSeparator(c.content);
+    const QString prevContent = adjacentContentIfSameContainer(c.prevLine, c.prefix);
+    const QString nextContent = adjacentContentIfSameContainer(c.nextLine, c.prefix);
+
+    const bool hasHeaderAbove = isSeparator && BlockParser::matchTable(prevContent);
+    const bool hasSeparatorBelow = BlockParser::matchTable(c.content) && BlockParser::matchTableSeparator(nextContent);
+    if (!hasHeaderAbove && !hasSeparatorBelow) {
         return false;
     }
 
@@ -447,6 +520,15 @@ bool tryClassifyTable(ClassifyContext &c, QVector<BlockToken> &tokens, BlockType
             tokens.append({c.contentOffset + i, 1, TokenType::TablePipe});
         }
     }
+
+    if (hasHeaderAbove) {
+        ContextFrame frame;
+        frame.state = BlockState::Table;
+        frame.depth = c.prefix.blockquoteDepth;
+        frame.listIndent = containerListIndent(c.prefix);
+        ctx.push(frame);
+    }
+
     out = BlockType::Table;
     return true;
 }
@@ -496,16 +578,18 @@ bool tryClassifyContainer(ClassifyContext &c, QVector<BlockToken> &tokens, Block
 
 BlockType BlockParser::classifyInNormalContext(const QString &text,
                                                ContextStack &ctx,
-                                               QVector<BlockToken> &tokens)
+                                               QVector<BlockToken> &tokens,
+                                               const QString &prevLine,
+                                               const QString &nextLine)
 {
-    ClassifyContext c = buildClassifyContext(text);
+    ClassifyContext c = buildClassifyContext(text, prevLine, nextLine);
     BlockType type;
 
     if (tryClassifyHtmlComment(c, ctx, tokens, type)) return type;
     if (tryClassifyATXHeading(c, tokens, type))       return type;
     if (tryClassifyCodeFence(c, ctx, tokens, type))   return type;
     if (tryClassifyLatex(c, ctx, tokens, type))       return type;
-    if (tryClassifyTable(c, tokens, type))            return type;
+    if (tryClassifyTable(c, ctx, tokens, type))       return type;
     if (tryClassifyHR(c, tokens, type))               return type;
     if (tryClassifyContainer(c, tokens, type))        return type;
 
@@ -677,10 +761,8 @@ bool BlockParser::matchTable(const QString &text)
         return false;
     }
 
-    static const QRegularExpression separatorRe(
-        R"(^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$)");
-    if (separatorRe.match(trimmed).hasMatch()) {
-        return true;
+    if (matchTableSeparator(trimmed)) {
+        return false;
     }
 
     bool hasCellContent = false;
@@ -691,6 +773,11 @@ bool BlockParser::matchTable(const QString &text)
         }
     }
     return hasCellContent;
+}
+
+bool BlockParser::matchTableSeparator(const QString &text)
+{
+    return tableSeparatorRegex().match(text.trimmed()).hasMatch();
 }
 
 bool BlockParser::matchBlockquote(const QString &text, int &contentOffset)
