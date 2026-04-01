@@ -15,6 +15,8 @@
 #include <QTextBlock>
 #include <QKeyEvent>
 #include <QInputMethodEvent>
+#include <QGuiApplication>
+#include <QInputMethod>
 #include <QScrollBar>
 #include <QTextOption>
 #include <QPalette>
@@ -27,6 +29,12 @@
 #include <QTextFormat>
 
 namespace {
+bool isInputMethodVisible()
+{
+    QInputMethod *inputMethod = QGuiApplication::inputMethod();
+    return inputMethod && inputMethod->isVisible();
+}
+
 void applyThemePalette(QPlainTextEdit *editor, const Theme &theme)
 {
     QPalette pal = editor->palette();
@@ -694,7 +702,7 @@ void MdEditor::resizeEvent(QResizeEvent *event)
 
 void MdEditor::keyPressEvent(QKeyEvent *event)
 {
-    if (imeComposing_) {
+    if (imeComposing_ || isInputMethodVisible()) {
         if (event->key() == Qt::Key_Return ||
             event->key() == Qt::Key_Enter ||
             event->key() == Qt::Key_Tab ||
@@ -1032,10 +1040,15 @@ bool MdEditor::handleEnterKey(QKeyEvent *event)
 
 void MdEditor::inputMethodEvent(QInputMethodEvent *event)
 {
-    // Pause highlighter during IME composition to avoid excessive rehighlights
     const bool composing = !event->preeditString().isEmpty();
-    imeComposing_ = composing;
-    highlighter_->setEnabled(!composing);
+    const bool hasCommit = !event->commitString().isEmpty() || event->replacementLength() != 0;
+
+    // Keep highlighting paused through IME candidate selection to avoid
+    // flicker and style churn while composing CJK/other IME text.
+    if (composing && !imeComposing_) {
+        imeComposing_ = true;
+        highlighter_->setEnabled(false);
+    }
 
     if (composing) {
         const auto attrs = normalizedPreeditAttributes(
@@ -1053,7 +1066,15 @@ void MdEditor::inputMethodEvent(QInputMethodEvent *event)
     }
 
     QPlainTextEdit::inputMethodEvent(event);
-    highlighter_->rehighlight();
+
+    if (!imeComposing_) {
+        return;
+    }
+
+    if (hasCommit || !isInputMethodVisible()) {
+        imeComposing_ = false;
+        highlighter_->setEnabled(true);
+    }
 }
 
 void MdEditor::setGlobalFontPointSize(int pointSize)
