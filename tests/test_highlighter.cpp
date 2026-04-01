@@ -36,6 +36,13 @@ QTextCharFormat firstCharFormat(const QTextDocument &doc, int blockNumber)
     }
     return formatAt(block, 0);
 }
+
+int colorDistance(const QColor &a, const QColor &b)
+{
+    return qAbs(a.red() - b.red()) +
+           qAbs(a.green() - b.green()) +
+           qAbs(a.blue() - b.blue());
+}
 }
 
 class TestHighlighter : public QObject {
@@ -141,6 +148,76 @@ private slots:
         const QTextCharFormat fmt = firstCharFormat(doc, 1);
         QVERIFY(fmt.isValid());
         QCOMPARE(fmt.foreground().color(), theme.markerFg);
+    }
+
+    void testStandaloneSetextH1UnderlineStillHighlighted()
+    {
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        doc.setPlainText("===");
+        highlighter.rehighlight();
+
+        const QTextCharFormat fmt = firstCharFormat(doc, 0);
+        QVERIFY(fmt.isValid());
+        QCOMPARE(fmt.foreground().color(), theme.markerFg);
+    }
+
+    void testSetextH2VariantHeadingLineUpdatesWhenUnderlineTypedLater_data()
+    {
+        QTest::addColumn<QString>("underline");
+
+        QTest::newRow("dash-compact") << QString("---");
+        QTest::newRow("dash-spaced") << QString("- - -");
+        QTest::newRow("star-compact") << QString("***");
+        QTest::newRow("star-spaced") << QString("* * *");
+    }
+
+    void testSetextH2VariantHeadingLineUpdatesWhenUnderlineTypedLater()
+    {
+        QFETCH(QString, underline);
+
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        doc.setPlainText("Title\n");
+        highlighter.rehighlight();
+
+        QTextCursor cursor(&doc);
+        cursor.movePosition(QTextCursor::End);
+        cursor.insertText(underline);
+        QCoreApplication::processEvents();
+
+        const QTextCharFormat fmt = firstCharFormat(doc, 0);
+        QVERIFY(fmt.isValid());
+        QCOMPARE(fmt.foreground().color(), theme.heading[1]);
+    }
+
+    void testSetextH2VariantUnderlineLineUsesMarkerFormat_data()
+    {
+        QTest::addColumn<QString>("underline");
+
+        QTest::newRow("dash-spaced") << QString("- - -");
+        QTest::newRow("star-compact") << QString("***");
+        QTest::newRow("star-spaced") << QString("* * *");
+    }
+
+    void testSetextH2VariantUnderlineLineUsesMarkerFormat()
+    {
+        QFETCH(QString, underline);
+
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        doc.setPlainText("Title\n" + underline);
+        highlighter.rehighlight();
+
+        const QTextCharFormat underlineFmt = firstCharFormat(doc, 1);
+        QVERIFY(underlineFmt.isValid());
+        QCOMPARE(underlineFmt.foreground().color(), theme.markerFg);
     }
 
     void testSetextHeadingLineUpdatesWhenUnderlineTypedLater()
@@ -250,7 +327,8 @@ private slots:
         theme.background = QColor(QStringLiteral("#ffffff"));
         theme.foreground = QColor(QStringLiteral("#18181b"));
         theme.lineNumberBg = QColor(QStringLiteral("#ffffff"));
-        theme.blockquoteBorderFg = QColor(QStringLiteral("#d4d4d8"));
+        theme.currentLineBg = QColor(QStringLiteral("#f4f4f5"));
+        theme.blockquoteBorderFg = QColor(QStringLiteral("#a1a1aa"));
 
         QTextDocument doc;
         MdHighlighter highlighter(&doc, theme);
@@ -265,11 +343,13 @@ private slots:
         QVERIFY(markFmt.isValid());
         QVERIFY(bodyFmt.isValid());
 
-        QColor expected = theme.blockquoteBorderFg;
-        expected.setAlpha(112);
-        QCOMPARE(markFmt.background().color(), expected);
-        QCOMPARE(bodyFmt.background().color(), expected);
-        QVERIFY(expected != theme.background);
+        const QColor markBg = markFmt.background().color();
+        const QColor bodyBg = bodyFmt.background().color();
+        QCOMPARE(markBg, bodyBg);
+        QVERIFY(markBg != theme.background);
+        QVERIFY(markBg != theme.currentLineBg);
+        QVERIFY(colorDistance(markBg, theme.background) >= 42);
+        QVERIFY(colorDistance(markBg, theme.currentLineBg) >= 36);
     }
 
     void testStrikethroughUsesStrikeOutFont()

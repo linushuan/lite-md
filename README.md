@@ -23,7 +23,8 @@ It focuses on fast typing, stable highlighting, and predictable editing behavior
 	- linked image `[![alt](image-url)](link-url)`
 	- angle autolinks `<https://example.com>` and `<user@example.com>`
 - Task list checkbox marker highlighting (`[ ]`, `[x]`, `[X]`).
-- Blockquote styling with a gray background and quote-border color.
+- Blockquote styling with a distinct gray background and quote-border color.
+- White theme readability tuning with deeper neutral-gray token colors.
 
 ## Autocomplete Behavior
 
@@ -46,6 +47,9 @@ It focuses on fast typing, stable highlighting, and predictable editing behavior
 	- blockquote continuation with preserved indentation and quote depth
 - Horizontal-rule safety:
 	- `***`, `- - -`, and `* * *` are not treated as lists on Enter.
+- Setext heading underline variants:
+	- `===` is always rendered as a visible underline marker.
+	- `---`, `***`, `- - -`, and `* * *` apply setext H2 heading behavior when they follow a non-empty text line.
 
 Complete behavior details are documented in [spec.md](spec.md).
 

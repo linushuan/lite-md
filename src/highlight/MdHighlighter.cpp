@@ -81,6 +81,7 @@ void MdHighlighter::highlightBlock(const QString &text)
             trimmed.isEmpty() ||
             trimmed.startsWith(QLatin1Char('-')) ||
             trimmed.startsWith(QLatin1Char('=')) ||
+            trimmed.startsWith(QLatin1Char('*')) ||
             hasAdjacentSetextUnderline;
 
         if (maybeSetextRelated) {
@@ -131,25 +132,33 @@ void MdHighlighter::highlightBlock(const QString &text)
     }
     // Mark setext underline itself. Only do this for normal/HR lines so we do
     // not override fenced code, LaTeX, HTML comments, etc.
-    const bool isSetextUnderline =
-        BlockParser::isSetextH1Underline(text) || BlockParser::isSetextH2Underline(text);
-    if (isSetextUnderline &&
+    const bool isSetextH1Underline = BlockParser::isSetextH1Underline(text);
+    const bool isSetextH2Underline = BlockParser::isSetextH2Underline(text);
+    bool shouldRenderSetextMarker = false;
+    if (isSetextH1Underline) {
+        // Requested behavior: "===" should be visibly rendered even when standalone.
+        shouldRenderSetextMarker = true;
+    } else if (isSetextH2Underline) {
+        // Keep "---"/"***" HR behavior on standalone lines, but render as heading
+        // underline when they follow a non-empty text line.
+        const QTextBlock prevBlock = currentBlock().previous();
+        shouldRenderSetextMarker = prevBlock.isValid() && !prevBlock.text().trimmed().isEmpty();
+    }
+
+    if (shouldRenderSetextMarker &&
         (blockType == BlockType::Normal || blockType == BlockType::HR) &&
         ctx.topState() == BlockState::Normal) {
-        const QTextBlock prevBlock = currentBlock().previous();
-        if (prevBlock.isValid() && !prevBlock.text().trimmed().isEmpty()) {
-            QVector<BlockToken> containerTokens;
-            for (const auto &token : blockTokens) {
-                if (token.type == TokenType::BlockquoteMark || token.type == TokenType::ListBullet) {
-                    containerTokens.append(token);
-                }
+        QVector<BlockToken> containerTokens;
+        for (const auto &token : blockTokens) {
+            if (token.type == TokenType::BlockquoteMark || token.type == TokenType::ListBullet) {
+                containerTokens.append(token);
             }
+        }
 
-            blockTokens = containerTokens;
-            const int contentOffset = computeContentOffset();
-            if (contentOffset < textLen) {
-                blockTokens.append({contentOffset, textLen - contentOffset, TokenType::SetextMarker});
-            }
+        blockTokens = containerTokens;
+        const int contentOffset = computeContentOffset();
+        if (contentOffset < textLen) {
+            blockTokens.append({contentOffset, textLen - contentOffset, TokenType::SetextMarker});
         }
     }
 
@@ -265,6 +274,20 @@ void MdHighlighter::buildFormats()
 {
     formats_.clear();
 
+    auto blendColor = [](const QColor &from, const QColor &to, qreal ratio) {
+        const qreal t = qBound<qreal>(0.0, ratio, 1.0);
+        return QColor(
+            static_cast<int>(from.red() + (to.red() - from.red()) * t),
+            static_cast<int>(from.green() + (to.green() - from.green()) * t),
+            static_cast<int>(from.blue() + (to.blue() - from.blue()) * t));
+    };
+
+    auto colorDistance = [](const QColor &a, const QColor &b) {
+        return qAbs(a.red() - b.red()) +
+               qAbs(a.green() - b.green()) +
+               qAbs(a.blue() - b.blue());
+    };
+
     auto makeFormat = [](const QColor &fg, bool bold = false, bool italic = false, const QColor &bg = QColor()) {
         QTextCharFormat fmt;
         fmt.setForeground(fg);
@@ -313,9 +336,30 @@ void MdHighlighter::buildFormats()
     formats_[TokenType::InlineCode]    = makeFormat(theme_.codeInlineFg, false, false, theme_.codeInlineBg);
     formats_[TokenType::InlineCodeMark] = makeFormat(theme_.markerFg);
 
-    // Blockquote
-    QColor blockquoteBg = theme_.blockquoteBorderFg;
-    blockquoteBg.setAlpha(112);
+    // Blockquote. Keep a clear visual separation from both editor background
+    // and current-line highlight, especially for the white theme.
+    const bool lightTheme = theme_.background.lightness() >= 128;
+    QColor blockquoteBg = lightTheme
+        ? blendColor(theme_.background, theme_.blockquoteBorderFg, 0.46)
+        : blendColor(theme_.background, theme_.blockquoteBorderFg, 0.28);
+
+    if (colorDistance(blockquoteBg, theme_.background) < (lightTheme ? 42 : 24)) {
+        blockquoteBg = lightTheme
+            ? theme_.background.darker(110)
+            : theme_.background.lighter(115);
+    }
+
+    if (colorDistance(blockquoteBg, theme_.currentLineBg) < (lightTheme ? 36 : 18)) {
+        blockquoteBg = lightTheme
+            ? theme_.currentLineBg.darker(116)
+            : blendColor(blockquoteBg, theme_.blockquoteBorderFg, 0.24);
+    }
+
+    if (lightTheme && blockquoteBg.lightness() >= theme_.currentLineBg.lightness()) {
+        blockquoteBg = theme_.currentLineBg.darker(116);
+    }
+
+    blockquoteBg.setAlpha(255);
     formats_[TokenType::BlockquoteMark] = makeFormat(theme_.blockquoteBorderFg, false, false, blockquoteBg);
     formats_[TokenType::BlockquoteBody] = makeFormat(theme_.blockquoteFg, false, false, blockquoteBg);
 

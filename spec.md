@@ -33,7 +33,7 @@ Inline parsing is skipped for code-fence bodies and HTML comment blocks.
 - ATX headings (`#` to `######`)
 - Setext headings
   - H1 underline: `===` (3+)
-  - H2 underline: `---` (3+)
+  - H2 underline variants: `---` (3+), `***`, `- - -`, `* * *`
   - leading indentation up to 3 spaces allowed on underline line
 - Fenced code blocks
   - backtick and tilde fences
@@ -53,7 +53,8 @@ Inline parsing is skipped for code-fence bodies and HTML comment blocks.
 
 - Horizontal rules are not parsed as list items.
 - `\begin{env}` starts a LaTeX environment block only when it is a standalone line.
-- Setext underlines are only treated as setext markers when the previous line is non-empty and context is normal text.
+- `===` underline lines are always rendered as visible setext markers.
+- H2 underline variants (`---`, `***`, `- - -`, `* * *`) are treated as setext markers when the previous line is non-empty and context is normal text.
 
 ## 4. Inline Grammar
 
@@ -131,6 +132,7 @@ No pair-autocomplete is added for:
 Key visual rules:
 
 - Blockquote marker/body: translucent gray background.
+- Light themes enforce stronger blockquote/background/current-line contrast so quote rows remain visually distinct while typing.
 - Strikethrough content: strike-out font style.
 - Underline content: font underline enabled.
 - Highlight content: background color (`searchHighlightBg`).
@@ -157,6 +159,7 @@ To avoid stale formatting and crashes:
 - angle brackets both as pair autocomplete and as autolink coloring.
 - nested linked-image syntax parsing/highlighting.
 - checkbox marker colorization for lowercase/uppercase checked states.
+- standalone `===` marker visibility and H2 variant marker rendering when paired with heading text.
 - token format ranges staying in bounds for complex markdown samples.
 
 ## 9. Test Matrix

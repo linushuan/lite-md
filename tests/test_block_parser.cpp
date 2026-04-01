@@ -300,7 +300,11 @@ private slots:
         QVERIFY(BlockParser::isSetextH2Underline("---"));
         QVERIFY(BlockParser::isSetextH2Underline("--------"));
         QVERIFY(BlockParser::isSetextH2Underline("   -----"));
+        QVERIFY(BlockParser::isSetextH2Underline("***"));
+        QVERIFY(BlockParser::isSetextH2Underline("* * *"));
+        QVERIFY(BlockParser::isSetextH2Underline("- - -"));
         QVERIFY(!BlockParser::isSetextH2Underline("--"));
+        QVERIFY(!BlockParser::isSetextH2Underline("___"));
     }
 
     void testListItemCheckboxToken()

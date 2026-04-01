@@ -335,7 +335,9 @@ bool BlockParser::isSetextH1Underline(const QString &nextLine)
 
 bool BlockParser::isSetextH2Underline(const QString &nextLine)
 {
-    static QRegularExpression re(R"(^ {0,3}-{3,}\s*$)");
+    // Accept classic "---" plus requested HR-style variants for heading underline
+    // behavior: "***", "- - -", "* * *".
+    static QRegularExpression re(R"(^ {0,3}([-*])(\s*\1){2,}\s*$)");
     return re.match(nextLine).hasMatch();
 }
 
