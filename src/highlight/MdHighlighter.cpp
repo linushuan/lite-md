@@ -498,17 +498,46 @@ void MdHighlighter::highlightBlock(const QString &text)
         cleanFmt.setForeground(theme_.foreground);
         cleanFmt.setFontWeight(QFont::Normal);
         cleanFmt.setFontItalic(false);
-        cleanFmt.setFontUnderline(false);
+        cleanFmt.setFontUnderline(true);
         cleanFmt.setFontStrikeOut(false);
         cleanFmt.setVerticalAlignment(QTextCharFormat::AlignNormal);
-        cleanFmt.setUnderlineStyle(QTextCharFormat::NoUnderline);
+        cleanFmt.setUnderlineStyle(QTextCharFormat::DashUnderline);
+        cleanFmt.setUnderlineColor(theme_.foreground);
 
         // Use previous real character as preedit base source for Qt merge.
         setFormat(preeditStartInBlock_ - 1, 1, cleanFmt);
     };
 
+    auto applyPreeditUnderlineFormat = [&]() {
+        if (preeditBlockNumber_ != currentBlock().blockNumber()) {
+            return;
+        }
+        if (preeditLength_ <= 0) {
+            return;
+        }
+
+        const int start = qBound(0, preeditStartInBlock_, textLen);
+        if (start >= textLen) {
+            return;
+        }
+
+        const int length = qBound(0, preeditLength_, textLen - start);
+        for (int i = 0; i < length; ++i) {
+            QTextCharFormat fmt = format(start + i);
+            fmt.setFontUnderline(true);
+            if (fmt.underlineStyle() == QTextCharFormat::NoUnderline) {
+                fmt.setUnderlineStyle(QTextCharFormat::DashUnderline);
+            }
+            if (!fmt.underlineColor().isValid()) {
+                fmt.setUnderlineColor(theme_.foreground);
+            }
+            setFormat(start + i, 1, fmt);
+        }
+    };
+
     if (blockType == BlockType::BlankLine) {
         applyPreeditAnchorFormat();
+        applyPreeditUnderlineFormat();
         saveContext(ctx);
         setCurrentBlockState(static_cast<int>(ctx.topState()));
         return;
@@ -612,6 +641,7 @@ void MdHighlighter::highlightBlock(const QString &text)
 
     // 5. Save context
     applyPreeditAnchorFormat();
+    applyPreeditUnderlineFormat();
     saveContext(ctx);
     setCurrentBlockState(static_cast<int>(ctx.topState()));
 }
