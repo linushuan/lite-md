@@ -122,6 +122,52 @@ private slots:
         QCOMPARE(fmt.foreground().color(), theme.latexMathBodyFg);
     }
 
+    void testInlineLatexEmptyPairWhileTypingUsesDelimiterFormat()
+    {
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        const QString text = QStringLiteral("sum = $$ + 1");
+        doc.setPlainText(text);
+        highlighter.rehighlight();
+
+        const QTextBlock block = doc.findBlockByNumber(0);
+        const int mathStart = text.indexOf(QStringLiteral("$$"));
+        QVERIFY(mathStart >= 0);
+
+        const QTextCharFormat openFmt = formatAt(block, mathStart);
+        const QTextCharFormat closeFmt = formatAt(block, mathStart + 1);
+        QVERIFY(openFmt.isValid());
+        QVERIFY(closeFmt.isValid());
+        QCOMPARE(openFmt.foreground().color(), theme.latexDelimiterFg);
+        QCOMPARE(closeFmt.foreground().color(), theme.latexDelimiterFg);
+    }
+
+    void testInlineLatexAdjacentSegmentsAllHighlighted()
+    {
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        const QString text = QStringLiteral("$adfsf$$adfsdf$$adfasdaf$");
+        doc.setPlainText(text);
+        highlighter.rehighlight();
+
+        const QTextBlock block = doc.findBlockByNumber(0);
+        const int secondStart = text.indexOf(QStringLiteral("$adfsdf$"));
+        const int thirdStart = text.indexOf(QStringLiteral("$adfasdaf$"));
+        QVERIFY(secondStart >= 0);
+        QVERIFY(thirdStart >= 0);
+
+        const QTextCharFormat secondBodyFmt = formatAt(block, secondStart + 1);
+        const QTextCharFormat thirdBodyFmt = formatAt(block, thirdStart + 1);
+        QVERIFY(secondBodyFmt.isValid());
+        QVERIFY(thirdBodyFmt.isValid());
+        QCOMPARE(secondBodyFmt.foreground().color(), theme.latexMathBodyFg);
+        QCOMPARE(thirdBodyFmt.foreground().color(), theme.latexMathBodyFg);
+    }
+
     void testSetextUnderlineStillHighlighted()
     {
         const Theme theme = Theme::darkDefault();

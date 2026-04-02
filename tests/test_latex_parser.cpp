@@ -46,6 +46,52 @@ private slots:
         QVERIFY(!result);
     }
 
+    void testEmptyInlineMathPairWhileTyping()
+    {
+        QVector<InlineToken> tokens;
+        int pos = 0;
+        QString text = "$$";
+        bool result = LatexParser::parseInline(text, pos, tokens);
+
+        // Typing "$...$" often creates an empty "$$" pair first.
+        QVERIFY(result);
+        QVERIFY(tokens.size() >= 2);
+        QCOMPARE(tokens[0].type, TokenType::LatexDelimiter);
+        QCOMPARE(tokens[1].type, TokenType::LatexDelimiter);
+        QCOMPARE(pos, 2);
+    }
+
+    void testEmptyInlineMathPairInsideWordNotParsed()
+    {
+        QVector<InlineToken> tokens;
+        int pos = 1;
+        QString text = "a$$b";
+        bool result = LatexParser::parseInline(text, pos, tokens);
+
+        // Prevent accidental parsing in word-adjacent $$ runs.
+        QVERIFY(!result);
+    }
+
+    void testAdjacentInlineMathSegments()
+    {
+        QVector<InlineToken> tokens;
+        QString text = "$a$$b$";
+
+        int pos = 0;
+        QVERIFY(LatexParser::parseInline(text, pos, tokens));
+        QCOMPARE(pos, 3);
+        QVERIFY(LatexParser::parseInline(text, pos, tokens));
+        QCOMPARE(pos, 6);
+
+        int bodyCount = 0;
+        for (const auto &token : tokens) {
+            if (token.type == TokenType::LatexMathBody) {
+                ++bodyCount;
+            }
+        }
+        QCOMPARE(bodyCount, 2);
+    }
+
     void testEscapedDollar()
     {
         QVector<InlineToken> tokens;

@@ -4,16 +4,59 @@
 #include "LatexParser.h"
 #include "InlineParser.h"  // for InlineToken struct
 
+namespace {
+bool isInlineMathBoundaryChar(const QString &text, int index)
+{
+    if (index < 0 || index >= text.length()) {
+        return true;
+    }
+
+    const QChar ch = text[index];
+    return ch.isSpace() || ch.isPunct();
+}
+
+bool followsParsedLatexClose(const QVector<InlineToken> &tokens, int pos)
+{
+    if (tokens.isEmpty()) {
+        return false;
+    }
+
+    const InlineToken &last = tokens.constLast();
+    return last.type == TokenType::LatexDelimiter &&
+           (last.start + last.length) == pos;
+}
+}
+
 bool LatexParser::parseInline(const QString &text, int &pos, QVector<InlineToken> &tokens)
 {
     const int textLen = static_cast<int>(text.length());
     if (pos < 0 || pos >= textLen) return false;
     if (text[pos] != '$') return false;
 
-    // $$ is display math, not inline — don't handle here
-    if (pos + 1 < textLen && text[pos + 1] == '$') return false;
-
     if (!isValidInlineMathStart(text, pos)) return false;
+
+    // Prevent entering from the middle of a $$ run, but allow immediately
+    // adjacent inline formulas like "$a$$b$" after the first close token.
+    if (pos > 0 && text[pos - 1] == QLatin1Char('$') &&
+        !followsParsedLatexClose(tokens, pos)) {
+        return false;
+    }
+
+    // While typing inline math, auto-pair usually creates "$...$" as "$$"
+    // before any content is entered. Highlight this temporary empty pair,
+    // but keep $$...$$ unavailable as an inline single-line form.
+    if (pos + 1 < textLen && text[pos + 1] == '$') {
+        const bool bounded = isInlineMathBoundaryChar(text, pos - 1) &&
+                             isInlineMathBoundaryChar(text, pos + 2);
+        if (!bounded) {
+            return false;
+        }
+
+        tokens.append({pos, 1, TokenType::LatexDelimiter});
+        tokens.append({pos + 1, 1, TokenType::LatexDelimiter});
+        pos += 2;
+        return true;
+    }
 
     // Scan for closing $
     int start = pos;

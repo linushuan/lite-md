@@ -64,6 +64,64 @@ private slots:
         }
     }
 
+    void testInlineLatexEmptyPairWhileTyping()
+    {
+        ContextStack ctx;
+        QVector<InlineToken> tokens;
+        const QString text = QStringLiteral("sum = $$ + 1");
+        InlineParser::parse(text, 0, ctx, tokens);
+
+        int latexDelimiterCount = 0;
+        bool hasNonEmptyMathBody = false;
+        for (const auto &t : tokens) {
+            if (t.type == TokenType::LatexDelimiter) {
+                ++latexDelimiterCount;
+            }
+            if (t.type == TokenType::LatexMathBody && t.length > 0) {
+                hasNonEmptyMathBody = true;
+            }
+        }
+
+        QCOMPARE(latexDelimiterCount, 2);
+        QVERIFY(!hasNonEmptyMathBody);
+    }
+
+    void testInlineLatexDoubleDollarWithBodyNotParsed()
+    {
+        ContextStack ctx;
+        QVector<InlineToken> tokens;
+        InlineParser::parse("$$x$$", 0, ctx, tokens);
+
+        for (const auto &t : tokens) {
+            QVERIFY(t.type != TokenType::LatexDelimiter);
+            QVERIFY(t.type != TokenType::LatexMathBody);
+        }
+    }
+
+    void testInlineLatexAdjacentSegmentsAllParsed()
+    {
+        ContextStack ctx;
+        QVector<InlineToken> tokens;
+        const QString text = QStringLiteral("$adfsf$$adfsdf$$adfasdaf$");
+        InlineParser::parse(text, 0, ctx, tokens);
+
+        int delimiterCount = 0;
+        QVector<QString> bodies;
+        for (const auto &t : tokens) {
+            if (t.type == TokenType::LatexDelimiter) {
+                ++delimiterCount;
+            } else if (t.type == TokenType::LatexMathBody) {
+                bodies.append(text.mid(t.start, t.length));
+            }
+        }
+
+        QCOMPARE(delimiterCount, 6);
+        QCOMPARE(bodies.size(), 3);
+        QCOMPARE(bodies[0], QStringLiteral("adfsf"));
+        QCOMPARE(bodies[1], QStringLiteral("adfsdf"));
+        QCOMPARE(bodies[2], QStringLiteral("adfasdaf"));
+    }
+
     void testLink()
     {
         ContextStack ctx;
