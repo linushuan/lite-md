@@ -7,6 +7,7 @@
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextLayout>
+#include <QFont>
 
 #include "highlight/MdHighlighter.h"
 #include "config/Theme.h"
@@ -711,6 +712,80 @@ private slots:
                 QVERIFY(range.start + range.length <= blockLen);
             }
         }
+    }
+
+    void testImeComposingAfterBoldMarkerUsesPlainBaseFormat()
+    {
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        const QString text = QStringLiteral("**aasdfa**這種");
+        doc.setPlainText(text);
+        highlighter.rehighlight();
+
+        const QTextBlock block = doc.findBlockByNumber(0);
+        const int anchor = text.indexOf(QStringLiteral("這"));
+        QVERIFY(anchor > 0);
+
+        const QTextCharFormat markerFmt = formatAt(block, anchor - 1);
+        const QTextCharFormat rightBeforeFmt = formatAt(block, anchor);
+        QVERIFY(markerFmt.isValid());
+        QCOMPARE(markerFmt.foreground().color(), theme.markerFg);
+
+        highlighter.setComposingPosition(0, anchor);
+
+        const QTextCharFormat composingLeftFmt = formatAt(block, anchor - 1);
+        const QTextCharFormat composingRightFmt = formatAt(block, anchor);
+        QVERIFY(composingLeftFmt.isValid());
+        QCOMPARE(composingLeftFmt.foreground().color(), markerFmt.foreground().color());
+        QCOMPARE(composingRightFmt.foreground().color(), rightBeforeFmt.foreground().color());
+        QCOMPARE(composingLeftFmt.fontWeight(), markerFmt.fontWeight());
+        QCOMPARE(composingLeftFmt.fontItalic(), markerFmt.fontItalic());
+
+        highlighter.clearComposingPosition();
+
+        const QTextCharFormat restoredFmt = formatAt(block, anchor - 1);
+        QVERIFY(restoredFmt.isValid());
+        QCOMPARE(restoredFmt.foreground().color(), theme.markerFg);
+    }
+
+    void testImeComposingNearBoldBoundaryKeepsFirstBoldCharFormat()
+    {
+        const Theme theme = Theme::darkDefault();
+        QTextDocument doc;
+        MdHighlighter highlighter(&doc, theme);
+
+        const QString text = QStringLiteral("**23123**");
+        doc.setPlainText(text);
+        highlighter.rehighlight();
+
+        const QTextBlock block = doc.findBlockByNumber(0);
+        const int firstContentPos = text.indexOf(QLatin1Char('2'));
+        QVERIFY(firstContentPos > 1);
+
+        const QTextCharFormat beforeFmt = formatAt(block, firstContentPos);
+        QVERIFY(beforeFmt.isValid());
+        QCOMPARE(beforeFmt.foreground().color(), theme.boldFg);
+
+        // Simulate a composing anchor near marker/content boundary.
+        highlighter.setComposingPosition(0, firstContentPos);
+
+        const QTextCharFormat markerFmt = formatAt(block, firstContentPos - 1);
+        const QTextCharFormat contentFmt = formatAt(block, firstContentPos);
+        QVERIFY(markerFmt.isValid());
+        QVERIFY(contentFmt.isValid());
+        QCOMPARE(markerFmt.foreground().color(), theme.markerFg);
+        QCOMPARE(contentFmt.foreground().color(), theme.boldFg);
+
+        highlighter.clearComposingPosition();
+
+        const QTextCharFormat restoredMarkerFmt = formatAt(block, firstContentPos - 1);
+        const QTextCharFormat restoredContentFmt = formatAt(block, firstContentPos);
+        QVERIFY(restoredMarkerFmt.isValid());
+        QVERIFY(restoredContentFmt.isValid());
+        QCOMPARE(restoredMarkerFmt.foreground().color(), theme.markerFg);
+        QCOMPARE(restoredContentFmt.foreground().color(), theme.boldFg);
     }
 
     void testInlineTokenFormattingCoversWholeRange()

@@ -53,16 +53,74 @@ QList<QInputMethodEvent::Attribute> normalizedPreeditAttributes(
     const QFont &editorFont)
 {
     QList<QInputMethodEvent::Attribute> normalized;
-    normalized.reserve(attributes.size() + 1);
+    normalized.reserve(attributes.size() + 2);
 
-    bool hasTextFormat = false;
+    auto buildNormalizedTextFormat = [&](const QTextCharFormat *imeAttr = nullptr) {
+        QTextCharFormat fmt;
+        fmt.setFont(editorFont, QTextCharFormat::FontPropertiesAll);
+        fmt.setForeground(foreground);
+        fmt.setBackground(background);
+        fmt.setFontWeight(QFont::Normal);
+        fmt.setFontItalic(false);
+        fmt.setFontUnderline(false);
+        fmt.setFontStrikeOut(false);
+        fmt.setVerticalAlignment(QTextCharFormat::AlignNormal);
+        fmt.setUnderlineStyle(QTextCharFormat::NoUnderline);
+
+        bool hasUnderlineHint = false;
+        if (imeAttr) {
+            if (imeAttr->fontUnderline()) {
+                fmt.setFontUnderline(true);
+                hasUnderlineHint = true;
+            }
+            if (imeAttr->underlineStyle() != QTextCharFormat::NoUnderline) {
+                fmt.setUnderlineStyle(imeAttr->underlineStyle());
+                hasUnderlineHint = true;
+            }
+            if (imeAttr->underlineColor().isValid()) {
+                fmt.setUnderlineColor(imeAttr->underlineColor());
+            }
+        }
+
+        if (!hasUnderlineHint) {
+            // Keep preedit visibly distinguishable when IME provides no style.
+            fmt.setFontUnderline(true);
+            fmt.setUnderlineStyle(QTextCharFormat::DashUnderline);
+            fmt.setUnderlineColor(foreground);
+        }
+
+        return fmt;
+    };
+
+    if (preeditLength > 0) {
+        // Always provide a clean full-range base to prevent style inheritance.
+        const QTextCharFormat baseFmt = buildNormalizedTextFormat();
+        normalized.push_back(QInputMethodEvent::Attribute(
+            QInputMethodEvent::TextFormat,
+            0,
+            preeditLength,
+            QTextFormat(baseFmt)));
+    }
+
     for (const QInputMethodEvent::Attribute &attr : attributes) {
         if (attr.type != QInputMethodEvent::TextFormat) {
             normalized.push_back(attr);
             continue;
         }
 
-        hasTextFormat = true;
+        if (preeditLength <= 0) {
+            continue;
+        }
+
+        const int start = qBound(0, attr.start, preeditLength);
+        int length = qMax(0, attr.length);
+        if (start >= preeditLength || length <= 0) {
+            continue;
+        }
+        if (start + length > preeditLength) {
+            length = preeditLength - start;
+        }
+
         QTextCharFormat imeAttr;
         if (attr.value.canConvert<QTextFormat>()) {
             imeAttr = qvariant_cast<QTextFormat>(attr.value).toCharFormat();
@@ -70,38 +128,13 @@ QList<QInputMethodEvent::Attribute> normalizedPreeditAttributes(
             imeAttr = qvariant_cast<QTextCharFormat>(attr.value);
         }
 
-        QTextCharFormat fmt;
-        fmt.setFont(editorFont);
-        fmt.setForeground(foreground);
-        fmt.setBackground(background);
-
-        if (imeAttr.fontUnderline()) {
-            fmt.setFontUnderline(true);
-        }
-        if (imeAttr.underlineStyle() != QTextCharFormat::NoUnderline) {
-            fmt.setUnderlineStyle(imeAttr.underlineStyle());
-        }
-        if (imeAttr.underlineColor().isValid()) {
-            fmt.setUnderlineColor(imeAttr.underlineColor());
-        }
+        const QTextCharFormat fmt = buildNormalizedTextFormat(&imeAttr);
 
         normalized.push_back(QInputMethodEvent::Attribute(
             QInputMethodEvent::TextFormat,
-            attr.start,
-            attr.length,
-            fmt));
-    }
-
-    if (!hasTextFormat && preeditLength > 0) {
-        QTextCharFormat fmt;
-        fmt.setFont(editorFont);
-        fmt.setForeground(foreground);
-        fmt.setBackground(background);
-        normalized.push_back(QInputMethodEvent::Attribute(
-            QInputMethodEvent::TextFormat,
-            0,
-            preeditLength,
-            fmt));
+            start,
+            length,
+            QTextFormat(fmt)));
     }
 
     return normalized;
@@ -655,7 +688,7 @@ void MdEditor::loadFile(const QString &path)
 {
     if (imeComposing_ || preeditLength_ > 0) {
         imeComposing_ = false;
-        highlighter_->clearComposingPosition();
+        highlighter_->clearPreeditRange();
         preeditBlockNumber_ = -1;
         preeditStart_ = -1;
         preeditLength_ = 0;
@@ -1200,18 +1233,24 @@ void MdEditor::inputMethodEvent(QInputMethodEvent *event)
         imeComposing_ = true;
 
         QTextCursor cursor = textCursor();
-        highlighter_->setComposingPosition(cursor.blockNumber(), cursor.positionInBlock());
+        preeditBlockNumber_ = cursor.blockNumber();
+        preeditStart_ = qMax(0, cursor.positionInBlock() + event->replacementStart());
 
         // Always normalize composing text color to editor foreground.
         QTextCharFormat cleanFmt;
-        cleanFmt.setFont(font());
+        cleanFmt.setFont(font(), QTextCharFormat::FontPropertiesAll);
         cleanFmt.setForeground(palette().color(QPalette::Text));
         cleanFmt.setBackground(palette().color(QPalette::Base));
+        cleanFmt.setFontWeight(QFont::Normal);
+        cleanFmt.setFontItalic(false);
+        cleanFmt.setFontUnderline(false);
+        cleanFmt.setFontStrikeOut(false);
+        cleanFmt.setVerticalAlignment(QTextCharFormat::AlignNormal);
+        cleanFmt.setUnderlineStyle(QTextCharFormat::NoUnderline);
         setCurrentCharFormat(cleanFmt);
 
-        preeditBlockNumber_ = cursor.blockNumber();
-        preeditStart_ = qMax(0, cursor.positionInBlock() + event->replacementStart());
         preeditLength_ = event->preeditString().size();
+        highlighter_->setPreeditRange(preeditBlockNumber_, preeditStart_, preeditLength_);
 
         const auto attrs = normalizedPreeditAttributes(
             event->attributes(),
@@ -1231,7 +1270,7 @@ void MdEditor::inputMethodEvent(QInputMethodEvent *event)
 
     QPlainTextEdit::inputMethodEvent(event);
     imeComposing_ = false;
-    highlighter_->clearComposingPosition();
+    highlighter_->clearPreeditRange();
     preeditBlockNumber_ = -1;
     preeditStart_ = -1;
     preeditLength_ = 0;
@@ -1241,7 +1280,7 @@ void MdEditor::focusOutEvent(QFocusEvent *event)
 {
     if (imeComposing_ || preeditLength_ > 0) {
         imeComposing_ = false;
-        highlighter_->clearComposingPosition();
+        highlighter_->clearPreeditRange();
         preeditBlockNumber_ = -1;
         preeditStart_ = -1;
         preeditLength_ = 0;

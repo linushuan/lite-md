@@ -20,6 +20,8 @@ public:
     void setTheme(const Theme &theme);
     void setEnabled(bool enabled);
     void setBaseFontSize(int pointSize);
+    void setPreeditRange(int blockNumber, int startInBlock, int length);
+    void clearPreeditRange();
     void setComposingPosition(int blockNumber, int posInBlock);
     void clearComposingPosition();
 
@@ -52,6 +54,7 @@ private:
     bool tableSyncInProgress_ = false;
     bool tableRefreshPending_ = false;
     int baseFontSize_ = 14;
-    int composingBlockNumber_ = -1;
-    int composingPosInBlock_ = -1;
+    int preeditBlockNumber_ = -1;
+    int preeditStartInBlock_ = -1;
+    int preeditLength_ = 0;
 };

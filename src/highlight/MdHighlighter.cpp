@@ -121,15 +121,23 @@ void MdHighlighter::setBaseFontSize(int pointSize)
     rehighlight();
 }
 
-void MdHighlighter::setComposingPosition(int blockNumber, int posInBlock)
+void MdHighlighter::setPreeditRange(int blockNumber, int startInBlock, int length)
 {
-    const int previousBlockNumber = composingBlockNumber_;
-    if (composingBlockNumber_ == blockNumber && composingPosInBlock_ == posInBlock) {
+    const int clampedStart = qMax(0, startInBlock);
+    const int clampedLength = qMax(0, length);
+
+    const int previousBlockNumber = preeditBlockNumber_;
+    const int previousStart = preeditStartInBlock_;
+    const int previousLength = preeditLength_;
+    if (preeditBlockNumber_ == blockNumber &&
+        preeditStartInBlock_ == clampedStart &&
+        preeditLength_ == clampedLength) {
         return;
     }
 
-    composingBlockNumber_ = blockNumber;
-    composingPosInBlock_ = posInBlock;
+    preeditBlockNumber_ = blockNumber;
+    preeditStartInBlock_ = clampedStart;
+    preeditLength_ = clampedLength;
 
     QTextDocument *doc = document();
     if (!doc) {
@@ -143,7 +151,10 @@ void MdHighlighter::setComposingPosition(int blockNumber, int posInBlock)
         }
     }
 
-    if (blockNumber >= 0) {
+    if (blockNumber >= 0 &&
+        (blockNumber != previousBlockNumber ||
+         clampedStart != previousStart ||
+         clampedLength != previousLength)) {
         const QTextBlock composingBlock = doc->findBlockByNumber(blockNumber);
         if (composingBlock.isValid()) {
             rehighlightBlock(composingBlock);
@@ -151,15 +162,16 @@ void MdHighlighter::setComposingPosition(int blockNumber, int posInBlock)
     }
 }
 
-void MdHighlighter::clearComposingPosition()
+void MdHighlighter::clearPreeditRange()
 {
-    if (composingBlockNumber_ < 0 && composingPosInBlock_ < 0) {
+    if (preeditBlockNumber_ < 0 && preeditStartInBlock_ < 0 && preeditLength_ == 0) {
         return;
     }
 
-    const int previousBlockNumber = composingBlockNumber_;
-    composingBlockNumber_ = -1;
-    composingPosInBlock_ = -1;
+    const int previousBlockNumber = preeditBlockNumber_;
+    preeditBlockNumber_ = -1;
+    preeditStartInBlock_ = -1;
+    preeditLength_ = 0;
 
     QTextDocument *doc = document();
     if (!doc || previousBlockNumber < 0) {
@@ -170,6 +182,16 @@ void MdHighlighter::clearComposingPosition()
     if (previousBlock.isValid()) {
         rehighlightBlock(previousBlock);
     }
+}
+
+void MdHighlighter::setComposingPosition(int blockNumber, int posInBlock)
+{
+    setPreeditRange(blockNumber, posInBlock, 0);
+}
+
+void MdHighlighter::clearComposingPosition()
+{
+    clearPreeditRange();
 }
 
 void MdHighlighter::highlightBlock(const QString &text)
@@ -464,7 +486,33 @@ void MdHighlighter::highlightBlock(const QString &text)
         }
     }
 
+    auto applyPreeditRangeFormat = [&]() {
+        if (preeditBlockNumber_ != currentBlock().blockNumber()) {
+            return;
+        }
+        if (preeditLength_ <= 0 || textLen <= 0) {
+            return;
+        }
+
+        const int start = qBound(0, preeditStartInBlock_, textLen);
+        const int length = qBound(0, preeditLength_, textLen - start);
+        if (length <= 0) {
+            return;
+        }
+
+        QTextCharFormat cleanFmt;
+        cleanFmt.setForeground(theme_.foreground);
+        cleanFmt.setFontWeight(QFont::Normal);
+        cleanFmt.setFontItalic(false);
+        cleanFmt.setFontUnderline(false);
+        cleanFmt.setFontStrikeOut(false);
+        cleanFmt.setVerticalAlignment(QTextCharFormat::AlignNormal);
+        cleanFmt.setUnderlineStyle(QTextCharFormat::NoUnderline);
+        setFormat(start, length, cleanFmt);
+    };
+
     if (blockType == BlockType::BlankLine) {
+        applyPreeditRangeFormat();
         saveContext(ctx);
         setCurrentBlockState(static_cast<int>(ctx.topState()));
         return;
@@ -567,15 +615,7 @@ void MdHighlighter::highlightBlock(const QString &text)
     }
 
     // 5. Save context
-    // During IME preedit, force a clean base format at the cursor position.
-    if (composingBlockNumber_ == currentBlock().blockNumber() &&
-        composingPosInBlock_ >= 0 &&
-        composingPosInBlock_ < textLen) {
-        QTextCharFormat cleanFmt;
-        cleanFmt.setForeground(theme_.foreground);
-        setFormat(composingPosInBlock_, 1, cleanFmt);
-    }
-
+    applyPreeditRangeFormat();
     saveContext(ctx);
     setCurrentBlockState(static_cast<int>(ctx.topState()));
 }
