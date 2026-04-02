@@ -62,6 +62,8 @@ QList<QInputMethodEvent::Attribute> normalizedPreeditAttributes(
         fmt.setFont(editorFont, QTextCharFormat::FontPropertiesAll);
         fmt.setForeground(foreground);
         fmt.setBackground(background);
+        fmt.setProperty(QTextFormat::ForegroundBrush, QBrush(foreground));
+        fmt.setProperty(QTextFormat::BackgroundBrush, QBrush(background));
         fmt.setFontWeight(QFont::Normal);
         fmt.setFontItalic(false);
         fmt.setFontUnderline(false);
@@ -1308,7 +1310,7 @@ void MdEditor::inputMethodEvent(QInputMethodEvent *event)
 
 QVariant MdEditor::inputMethodQuery(Qt::InputMethodQuery query) const
 {
-    if (imeComposing_ && query == Qt::ImFont) {
+    if (query == Qt::ImFont) {
         return QVariant::fromValue(font());
     }
 
