@@ -350,7 +350,7 @@ private slots:
         editor_->clear();
 
         QTest::keyClicks(editor_, "<");
-        QCOMPARE(editor_->toPlainText(), QString("<"));
+        QCOMPARE(editor_->toPlainText(), QString("<>"));
         QCOMPARE(editor_->textCursor().positionInBlock(), 1);
 
         QTest::keyClicks(editor_, ">");

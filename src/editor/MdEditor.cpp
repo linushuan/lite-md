@@ -903,6 +903,8 @@ bool MdEditor::handleAutoCloseKey(QKeyEvent *event)
         closer = QLatin1Char(']');
     } else if (typed == QLatin1Char('{')) {
         closer = QLatin1Char('}');
+    } else if (typed == QLatin1Char('<')) {
+        closer = QLatin1Char('>');
     } else if (typed == QLatin1Char('$')) {
         closer = QLatin1Char('$');
     } else if (typed == QLatin1Char('`')) {
