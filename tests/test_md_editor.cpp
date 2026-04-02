@@ -174,6 +174,90 @@ private slots:
         QCOMPARE(lines.value(1), QString("2. "));
     }
 
+    void testImePreeditOnEmptyLineNormalizesInheritedForeground()
+    {
+        editor_->clear();
+
+        QTextCharFormat staleFmt;
+        staleFmt.setForeground(Qt::red);
+        editor_->mergeCurrentCharFormat(staleFmt);
+
+        QInputMethodEvent preeditEvent(QStringLiteral("zhong"), {});
+        QCoreApplication::sendEvent(editor_, &preeditEvent);
+
+        const QColor expected = editor_->palette().color(QPalette::Text);
+        QCOMPARE(editor_->currentCharFormat().foreground().color(), expected);
+
+        QInputMethodEvent cancelEvent(QString(), {});
+        QCoreApplication::sendEvent(editor_, &cancelEvent);
+    }
+
+    void testImePreeditOnWhitespaceTabLineNormalizesInheritedForeground()
+    {
+        editor_->setPlainText(QStringLiteral(" \t  "));
+
+        QTextCursor cursor = editor_->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        editor_->setTextCursor(cursor);
+
+        QTextCharFormat staleFmt;
+        staleFmt.setForeground(Qt::red);
+        editor_->mergeCurrentCharFormat(staleFmt);
+
+        QInputMethodEvent preeditEvent(QStringLiteral("zhong"), {});
+        QCoreApplication::sendEvent(editor_, &preeditEvent);
+
+        const QColor expected = editor_->palette().color(QPalette::Text);
+        QCOMPARE(editor_->currentCharFormat().foreground().color(), expected);
+
+        QInputMethodEvent cancelEvent(QString(), {});
+        QCoreApplication::sendEvent(editor_, &cancelEvent);
+    }
+
+    void testImePreeditAfterBackslashPrefixNormalizesInheritedForeground()
+    {
+        editor_->setPlainText(QStringLiteral(" \t\\"));
+
+        QTextCursor cursor = editor_->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        editor_->setTextCursor(cursor);
+
+        QTextCharFormat staleFmt;
+        staleFmt.setForeground(Qt::red);
+        editor_->mergeCurrentCharFormat(staleFmt);
+
+        QInputMethodEvent preeditEvent(QStringLiteral("zhong"), {});
+        QCoreApplication::sendEvent(editor_, &preeditEvent);
+
+        const QColor expected = editor_->palette().color(QPalette::Text);
+        QCOMPARE(editor_->currentCharFormat().foreground().color(), expected);
+
+        QInputMethodEvent cancelEvent(QString(), {});
+        QCoreApplication::sendEvent(editor_, &cancelEvent);
+    }
+
+    void testImePreeditAfterCommittedTextNormalizesInheritedForeground()
+    {
+        editor_->setPlainText(QStringLiteral("abc"));
+
+        QTextCursor cursor = editor_->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        editor_->setTextCursor(cursor);
+
+        QTextCharFormat staleFmt;
+        staleFmt.setForeground(Qt::red);
+        editor_->mergeCurrentCharFormat(staleFmt);
+
+        QInputMethodEvent preeditEvent(QStringLiteral("zhong"), {});
+        QCoreApplication::sendEvent(editor_, &preeditEvent);
+
+        const QColor expected = editor_->palette().color(QPalette::Text);
+        QCOMPARE(editor_->currentCharFormat().foreground().color(), expected);
+
+        QInputMethodEvent cancelEvent(QString(), {});
+        QCoreApplication::sendEvent(editor_, &cancelEvent);
+    }
+
     void testFocusOutDuringImeCompositionRestoresEditorShortcuts()
     {
         editor_->setPlainText("plain text");

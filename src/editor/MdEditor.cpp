@@ -88,7 +88,6 @@ QList<QInputMethodEvent::Attribute> normalizedPreeditAttributes(
 
     return normalized;
 }
-
 int leadingSpaceCount(const QString &line)
 {
     int count = 0;
@@ -1183,6 +1182,12 @@ void MdEditor::inputMethodEvent(QInputMethodEvent *event)
         imeComposing_ = true;
 
         QTextCursor cursor = textCursor();
+        // Always normalize composing text color to editor foreground.
+        QTextCharFormat preeditCaretFmt;
+        preeditCaretFmt.setForeground(palette().color(QPalette::Text));
+        mergeCurrentCharFormat(preeditCaretFmt);
+        cursor = textCursor();
+
         preeditBlockNumber_ = cursor.blockNumber();
         preeditStart_ = qMax(0, cursor.positionInBlock() + event->replacementStart());
         preeditLength_ = event->preeditString().size();
