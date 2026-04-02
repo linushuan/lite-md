@@ -103,7 +103,7 @@ QList<QInputMethodEvent::Attribute> normalizedPreeditAttributes(
             QInputMethodEvent::TextFormat,
             0,
             preeditLength,
-            QTextFormat(baseFmt)));
+            QVariant::fromValue(baseFmt)));
     }
 
     for (const QInputMethodEvent::Attribute &attr : attributes) {
@@ -138,7 +138,7 @@ QList<QInputMethodEvent::Attribute> normalizedPreeditAttributes(
             QInputMethodEvent::TextFormat,
             start,
             length,
-            QTextFormat(fmt)));
+            QVariant::fromValue(fmt)));
     }
 
     return normalized;
