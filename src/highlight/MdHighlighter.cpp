@@ -122,7 +122,24 @@ void MdHighlighter::setBaseFontSize(int pointSize)
 
 void MdHighlighter::highlightBlock(const QString &text)
 {
-    if (!enabled_) return;
+    // Always restore/classify/save context so incremental block state stays
+    // consistent even when visual highlighting is temporarily paused.
+    ContextStack ctx = restoreContext();
+
+    if (!enabled_) {
+        const QTextBlock prevLineBlock = currentBlock().previous();
+        const QTextBlock nextLineBlock = currentBlock().next();
+        const QString prevLine = prevLineBlock.isValid() ? prevLineBlock.text() : QString();
+        const QString nextLine = nextLineBlock.isValid() ? nextLineBlock.text() : QString();
+
+        QVector<BlockToken> blockTokens;
+        BlockParser::classify(text, ctx, blockTokens, prevLine, nextLine);
+
+        saveContext(ctx);
+        setCurrentBlockState(static_cast<int>(ctx.topState()));
+        return;
+    }
+
     const int textLen = static_cast<int>(text.length());
 
     auto queueTableRefresh = [&]() {
@@ -138,9 +155,6 @@ void MdHighlighter::highlightBlock(const QString &text)
             tableRefreshPending_ = false;
         }, Qt::QueuedConnection);
     };
-
-    // 1. Restore context from previous block
-    ContextStack ctx = restoreContext();
 
     // Setext headings depend on the next line. Queue a single full refresh
     // on potential underline edits to avoid reentrant highlighting crashes.
