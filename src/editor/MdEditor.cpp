@@ -636,9 +636,12 @@ MdEditor::MdEditor(QWidget *parent)
 
 void MdEditor::loadFile(const QString &path)
 {
-    if (imeComposing_) {
+    if (imeComposing_ || preeditLength_ > 0) {
         imeComposing_ = false;
-        highlighter_->setEnabled(true);
+        preeditBlockNumber_ = -1;
+        preeditStart_ = -1;
+        preeditLength_ = 0;
+        highlighter_->clearPreeditRange();
     }
 
     QFile file(path);
@@ -1176,14 +1179,15 @@ void MdEditor::inputMethodEvent(QInputMethodEvent *event)
 {
     const bool composing = !event->preeditString().isEmpty();
 
-    // Keep highlighting paused through IME candidate selection to avoid
-    // flicker and style churn while composing CJK/other IME text.
-    if (composing && !imeComposing_) {
-        imeComposing_ = true;
-        highlighter_->setEnabled(false);
-    }
-
     if (composing) {
+        imeComposing_ = true;
+
+        QTextCursor cursor = textCursor();
+        preeditBlockNumber_ = cursor.blockNumber();
+        preeditStart_ = qMax(0, cursor.positionInBlock() + event->replacementStart());
+        preeditLength_ = event->preeditString().size();
+        highlighter_->setPreeditRange(preeditBlockNumber_, preeditStart_, preeditLength_);
+
         const auto attrs = normalizedPreeditAttributes(
             event->attributes(),
             event->preeditString().size(),
@@ -1199,22 +1203,21 @@ void MdEditor::inputMethodEvent(QInputMethodEvent *event)
     }
 
     QPlainTextEdit::inputMethodEvent(event);
-
-    if (!imeComposing_) {
-        return;
-    }
-
-    // Once preedit ends, always resume highlighting. Commit/cancel semantics
-    // vary across IMEs (fcitx/ibus), but composing=false is the stable signal.
     imeComposing_ = false;
-    highlighter_->setEnabled(true);
+    preeditBlockNumber_ = -1;
+    preeditStart_ = -1;
+    preeditLength_ = 0;
+    highlighter_->clearPreeditRange();
 }
 
 void MdEditor::focusOutEvent(QFocusEvent *event)
 {
-    if (imeComposing_) {
+    if (imeComposing_ || preeditLength_ > 0) {
         imeComposing_ = false;
-        highlighter_->setEnabled(true);
+        preeditBlockNumber_ = -1;
+        preeditStart_ = -1;
+        preeditLength_ = 0;
+        highlighter_->clearPreeditRange();
     }
 
     QPlainTextEdit::focusOutEvent(event);

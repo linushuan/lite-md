@@ -74,6 +74,9 @@ private:
     int             emittedWords_ = -1;
     int             emittedChars_ = -1;
     bool            imeComposing_ = false;
+    int             preeditBlockNumber_ = -1;
+    int             preeditStart_ = -1;
+    int             preeditLength_ = 0;
     QColor          currentLineBg_ = QColor("#2a2a3e");
     QColor          lineNumberFg_ = QColor("#585b70");
     QColor          lineNumberBg_ = QColor("#1e1e2e");

@@ -20,6 +20,8 @@ public:
     void setTheme(const Theme &theme);
     void setEnabled(bool enabled);
     void setBaseFontSize(int pointSize);
+    void setPreeditRange(int blockNumber, int start, int length);
+    void clearPreeditRange();
 
     bool blockStartsInsideLatexDisplay(const QTextBlock &block, bool *known = nullptr) const;
     bool blockStartsInsideCodeFence(const QTextBlock &block, bool *known = nullptr) const;
@@ -45,6 +47,9 @@ private:
     Theme theme_;
     QHash<TokenType, QTextCharFormat> formats_;
     bool enabled_ = true;
+    int preeditBlockNumber_ = -1;
+    int preeditStart_ = -1;
+    int preeditLength_ = 0;
     bool setextSyncInProgress_ = false;
     bool setextRefreshPending_ = false;
     bool tableSyncInProgress_ = false;

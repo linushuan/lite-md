@@ -120,6 +120,25 @@ void MdHighlighter::setBaseFontSize(int pointSize)
     rehighlight();
 }
 
+void MdHighlighter::setPreeditRange(int blockNumber, int start, int length)
+{
+    if (blockNumber < 0 || length <= 0) {
+        clearPreeditRange();
+        return;
+    }
+
+    preeditBlockNumber_ = blockNumber;
+    preeditStart_ = qMax(0, start);
+    preeditLength_ = length;
+}
+
+void MdHighlighter::clearPreeditRange()
+{
+    preeditBlockNumber_ = -1;
+    preeditStart_ = -1;
+    preeditLength_ = 0;
+}
+
 void MdHighlighter::highlightBlock(const QString &text)
 {
     // Always restore/classify/save context so incremental block state stays
@@ -363,6 +382,10 @@ void MdHighlighter::highlightBlock(const QString &text)
     }
 
     auto applyFormatWithBlockquoteBackground = [&](int start, int length, const QTextCharFormat &baseFmt) {
+        if (length <= 0) {
+            return;
+        }
+
         auto dimColorLightness = [](const QColor &color, qreal factor) {
             QColor hsl = color.toHsl();
             float h = 0.0f;
@@ -375,21 +398,53 @@ void MdHighlighter::highlightBlock(const QString &text)
             return hsl.toRgb();
         };
 
-        QTextCharFormat fmt = baseFmt;
-        if (inBlockquoteContainer && blockquoteBackground.isValid()) {
-            if (fmt.background().style() == Qt::NoBrush) {
-                fmt.setBackground(blockquoteBackground);
-            } else {
-                const QColor tokenBackground = fmt.background().color();
-                if (tokenBackground.isValid()) {
-                    if (tokenBackground != blockquoteBackground) {
-                        // Keep token-local background hue, but reduce brightness in quotes.
-                        fmt.setBackground(dimColorLightness(tokenBackground, 0.78));
+        auto applyPreparedFormat = [&](int rangeStart, int rangeLength) {
+            if (rangeLength <= 0) {
+                return;
+            }
+
+            QTextCharFormat fmt = baseFmt;
+            if (inBlockquoteContainer && blockquoteBackground.isValid()) {
+                if (fmt.background().style() == Qt::NoBrush) {
+                    fmt.setBackground(blockquoteBackground);
+                } else {
+                    const QColor tokenBackground = fmt.background().color();
+                    if (tokenBackground.isValid()) {
+                        if (tokenBackground != blockquoteBackground) {
+                            // Keep token-local background hue, but reduce brightness in quotes.
+                            fmt.setBackground(dimColorLightness(tokenBackground, 0.78));
+                        }
                     }
                 }
             }
+
+            setFormat(rangeStart, rangeLength, fmt);
+        };
+
+        const bool hasPreeditInCurrentBlock =
+            preeditLength_ > 0 &&
+            preeditBlockNumber_ == currentBlock().blockNumber();
+
+        if (!hasPreeditInCurrentBlock) {
+            applyPreparedFormat(start, length);
+            return;
         }
-        setFormat(start, length, fmt);
+
+        const int rangeStart = qMax(0, start);
+        const int rangeEnd = qMax(rangeStart, start + length);
+        const int preeditStart = qMax(0, preeditStart_);
+        const int preeditEnd = preeditStart + preeditLength_;
+
+        const int overlapStart = qMax(rangeStart, preeditStart);
+        const int overlapEnd = qMin(rangeEnd, preeditEnd);
+
+        if (overlapStart >= overlapEnd) {
+            applyPreparedFormat(rangeStart, rangeEnd - rangeStart);
+            return;
+        }
+
+        applyPreparedFormat(rangeStart, overlapStart - rangeStart);
+        applyPreparedFormat(overlapEnd, rangeEnd - overlapEnd);
     };
 
     // 3. Apply block token formats
