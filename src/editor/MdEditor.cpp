@@ -769,6 +769,9 @@ void MdEditor::keyPressEvent(QKeyEvent *event)
         return;
     }
 
+    if (handleBackspaceKey(event)) {
+        return;
+    }
     if (handleAutoCloseKey(event)) {
         return;
     }
@@ -780,6 +783,74 @@ void MdEditor::keyPressEvent(QKeyEvent *event)
     }
 
     QPlainTextEdit::keyPressEvent(event);
+}
+
+bool MdEditor::handleBackspaceKey(QKeyEvent *event)
+{
+    if (event->key() != Qt::Key_Backspace) {
+        return false;
+    }
+
+    const Qt::KeyboardModifiers mods = event->modifiers();
+    const bool hasCommandModifier = (mods & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
+    if (hasCommandModifier) {
+        return false;
+    }
+
+    QTextCursor cursor = textCursor();
+    if (cursor.hasSelection()) {
+        return false;
+    }
+
+    const QString line = cursor.block().text();
+    const int pos = cursor.positionInBlock();
+    if (pos <= 0 || pos >= line.size()) {
+        return false;
+    }
+
+    const QChar left = line[pos - 1];
+    const QChar right = line[pos];
+
+    const bool isRemovablePair =
+        (left == QLatin1Char('(') && right == QLatin1Char(')')) ||
+        (left == QLatin1Char('[') && right == QLatin1Char(']')) ||
+        (left == QLatin1Char('{') && right == QLatin1Char('}')) ||
+        (left == QLatin1Char('<') && right == QLatin1Char('>')) ||
+        (left == QLatin1Char('$') && right == QLatin1Char('$')) ||
+        (left == QLatin1Char('`') && right == QLatin1Char('`'));
+
+    if (!isRemovablePair) {
+        return false;
+    }
+
+    // Do not collapse the opening $$ when it already has an auto-inserted
+    // multiline closing fence below.
+    if (left == QLatin1Char('$') && isStandaloneLatexDisplayFenceLine(line)) {
+        const QString leadingSpaces(leadingSpaceCount(line), QLatin1Char(' '));
+        const QString fenceLine = leadingSpaces + QStringLiteral("$$");
+        if (hasImmediateAutoClosedBlock(cursor.block(), fenceLine)) {
+            return false;
+        }
+    }
+
+    // Keep ``` editing natural: when this `` is part of a longer run,
+    // Backspace should remove one character instead of collapsing two.
+    if (left == QLatin1Char('`')) {
+        const bool hasBacktickBeforePair = (pos >= 2 && line[pos - 2] == QLatin1Char('`'));
+        const bool hasBacktickAfterPair = (pos + 1 < line.size() && line[pos + 1] == QLatin1Char('`'));
+        if (hasBacktickBeforePair || hasBacktickAfterPair) {
+            return false;
+        }
+    }
+
+    const int absolutePos = cursor.position();
+    cursor.beginEditBlock();
+    cursor.setPosition(absolutePos - 1);
+    cursor.setPosition(absolutePos + 1, QTextCursor::KeepAnchor);
+    cursor.removeSelectedText();
+    cursor.endEditBlock();
+    setTextCursor(cursor);
+    return true;
 }
 
 bool MdEditor::handleAutoCloseKey(QKeyEvent *event)

@@ -80,6 +80,7 @@ private:
     QTimer         *statusStatsTimer_ = nullptr;
 
     bool handleAutoCloseKey(QKeyEvent *event);
+    bool handleBackspaceKey(QKeyEvent *event);
     bool handleTabKey(QKeyEvent *event);
     bool handleEnterKey(QKeyEvent *event);
     bool handleListIndentationKey(bool indentForward);

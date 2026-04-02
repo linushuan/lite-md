@@ -402,6 +402,82 @@ private slots:
         QCOMPARE(editor_->textCursor().positionInBlock(), 3);
     }
 
+    void testBackspaceRemovesEmptyPairedDelimiters_data()
+    {
+        QTest::addColumn<QString>("line");
+        QTest::addColumn<int>("cursorPos");
+        QTest::addColumn<QString>("expected");
+        QTest::addColumn<int>("expectedCursorPos");
+
+        QTest::newRow("paren") << QString("()") << 1 << QString("") << 0;
+        QTest::newRow("square") << QString("[]") << 1 << QString("") << 0;
+        QTest::newRow("curly") << QString("{}") << 1 << QString("") << 0;
+        QTest::newRow("angle") << QString("<>") << 1 << QString("") << 0;
+        QTest::newRow("dollar") << QString("$$") << 1 << QString("") << 0;
+        QTest::newRow("backtick") << QString("``") << 1 << QString("") << 0;
+    }
+
+    void testBackspaceRemovesEmptyPairedDelimiters()
+    {
+        QFETCH(QString, line);
+        QFETCH(int, cursorPos);
+        QFETCH(QString, expected);
+        QFETCH(int, expectedCursorPos);
+
+        editor_->setPlainText(line);
+
+        QTextCursor cursor = editor_->textCursor();
+        cursor.setPosition(cursorPos);
+        editor_->setTextCursor(cursor);
+
+        QTest::keyClick(editor_, Qt::Key_Backspace);
+
+        QCOMPARE(editor_->toPlainText(), expected);
+        QCOMPARE(editor_->textCursor().positionInBlock(), expectedCursorPos);
+    }
+
+    void testBackspaceInsideTripleBacktickRemovesSingleBacktick_data()
+    {
+        QTest::addColumn<int>("cursorPos");
+        QTest::addColumn<int>("expectedCursorPos");
+
+        QTest::newRow("between-first-second") << 1 << 0;
+        QTest::newRow("between-second-third") << 2 << 1;
+    }
+
+    void testBackspaceInsideTripleBacktickRemovesSingleBacktick()
+    {
+        QFETCH(int, cursorPos);
+        QFETCH(int, expectedCursorPos);
+
+        editor_->setPlainText("```");
+
+        QTextCursor cursor = editor_->textCursor();
+        cursor.setPosition(cursorPos);
+        editor_->setTextCursor(cursor);
+
+        QTest::keyClick(editor_, Qt::Key_Backspace);
+
+        QCOMPARE(editor_->toPlainText(), QString("``"));
+        QCOMPARE(editor_->textCursor().positionInBlock(), expectedCursorPos);
+    }
+
+    void testBackspaceOnMultilineLatexFenceOpeningRemovesSingleDollar()
+    {
+        editor_->setPlainText("$$\n\n$$");
+
+        QTextBlock opening = editor_->document()->findBlockByNumber(0);
+        QTextCursor cursor(editor_->document());
+        cursor.setPosition(opening.position() + 1);
+        editor_->setTextCursor(cursor);
+
+        QTest::keyClick(editor_, Qt::Key_Backspace);
+
+        QCOMPARE(editor_->toPlainText(), QString("$\n\n$$"));
+        QCOMPARE(editor_->textCursor().blockNumber(), 0);
+        QCOMPARE(editor_->textCursor().positionInBlock(), 0);
+    }
+
     void testLatexFenceEnterCreatesClosingFence()
     {
         editor_->setPlainText("$$");
