@@ -738,10 +738,11 @@ private slots:
         const QTextCharFormat composingLeftFmt = formatAt(block, anchor - 1);
         const QTextCharFormat composingRightFmt = formatAt(block, anchor);
         QVERIFY(composingLeftFmt.isValid());
-        QCOMPARE(composingLeftFmt.foreground().color(), markerFmt.foreground().color());
+        QVERIFY(composingRightFmt.isValid());
+        QCOMPARE(composingLeftFmt.foreground().color(), theme.foreground);
         QCOMPARE(composingRightFmt.foreground().color(), rightBeforeFmt.foreground().color());
-        QCOMPARE(composingLeftFmt.fontWeight(), markerFmt.fontWeight());
-        QCOMPARE(composingLeftFmt.fontItalic(), markerFmt.fontItalic());
+        QVERIFY(composingLeftFmt.fontWeight() <= static_cast<int>(QFont::Normal));
+        QVERIFY(!composingLeftFmt.fontItalic());
 
         highlighter.clearComposingPosition();
 
@@ -775,7 +776,7 @@ private slots:
         const QTextCharFormat contentFmt = formatAt(block, firstContentPos);
         QVERIFY(markerFmt.isValid());
         QVERIFY(contentFmt.isValid());
-        QCOMPARE(markerFmt.foreground().color(), theme.markerFg);
+        QCOMPARE(markerFmt.foreground().color(), theme.foreground);
         QCOMPARE(contentFmt.foreground().color(), theme.boldFg);
 
         highlighter.clearComposingPosition();
@@ -814,14 +815,17 @@ private slots:
         QVERIFY(markerFmt.isValid());
         QVERIFY(preeditFmt.isValid());
         QVERIFY(nextFmt.isValid());
-        QCOMPARE(markerFmt.foreground().color(), theme.markerFg);
+        QCOMPARE(markerFmt.foreground().color(), theme.foreground);
         QCOMPARE(preeditFmt.foreground().color(), theme.boldFg);
         QCOMPARE(nextFmt.foreground().color(), theme.boldFg);
 
         highlighter.clearPreeditRange();
 
+        const QTextCharFormat restoredMarkerFmt = formatAt(block, preeditPos - 1);
         const QTextCharFormat restoredPreeditFmt = formatAt(block, preeditPos);
+        QVERIFY(restoredMarkerFmt.isValid());
         QVERIFY(restoredPreeditFmt.isValid());
+        QCOMPARE(restoredMarkerFmt.foreground().color(), theme.markerFg);
         QCOMPARE(restoredPreeditFmt.foreground().color(), theme.boldFg);
     }
 

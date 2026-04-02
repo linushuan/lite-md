@@ -486,7 +486,29 @@ void MdHighlighter::highlightBlock(const QString &text)
         }
     }
 
+    auto applyPreeditAnchorFormat = [&]() {
+        if (preeditBlockNumber_ != currentBlock().blockNumber()) {
+            return;
+        }
+        if (preeditStartInBlock_ <= 0 || preeditStartInBlock_ > textLen) {
+            return;
+        }
+
+        QTextCharFormat cleanFmt;
+        cleanFmt.setForeground(theme_.foreground);
+        cleanFmt.setFontWeight(QFont::Normal);
+        cleanFmt.setFontItalic(false);
+        cleanFmt.setFontUnderline(false);
+        cleanFmt.setFontStrikeOut(false);
+        cleanFmt.setVerticalAlignment(QTextCharFormat::AlignNormal);
+        cleanFmt.setUnderlineStyle(QTextCharFormat::NoUnderline);
+
+        // Use previous real character as preedit base source for Qt merge.
+        setFormat(preeditStartInBlock_ - 1, 1, cleanFmt);
+    };
+
     if (blockType == BlockType::BlankLine) {
+        applyPreeditAnchorFormat();
         saveContext(ctx);
         setCurrentBlockState(static_cast<int>(ctx.topState()));
         return;
@@ -589,6 +611,7 @@ void MdHighlighter::highlightBlock(const QString &text)
     }
 
     // 5. Save context
+    applyPreeditAnchorFormat();
     saveContext(ctx);
     setCurrentBlockState(static_cast<int>(ctx.topState()));
 }
