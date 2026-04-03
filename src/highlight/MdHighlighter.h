@@ -46,6 +46,7 @@ private:
     bool         blockStartsInsideState(const QTextBlock &block, BlockState state, bool *known = nullptr) const;
 
     void buildFormats();
+    void runPendingSetextRefresh();
 
     Theme theme_;
     QHash<TokenType, QTextCharFormat> formats_;
@@ -54,6 +55,7 @@ private:
     bool setextRefreshPending_ = false;
     bool tableSyncInProgress_ = false;
     bool tableRefreshPending_ = false;
+    bool rehighlightInProgress_ = false;
     QTimer *tableRefreshTimer_ = nullptr;
     int tableRefreshDebounceMs_ = 80;
     qint64 lastTableRefreshMs_ = -1;

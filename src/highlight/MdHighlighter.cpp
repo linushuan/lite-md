@@ -118,15 +118,17 @@ MdHighlighter::MdHighlighter(QTextDocument *parent, const Theme &theme)
     tableRefreshTimer_ = new QTimer(this);
     tableRefreshTimer_->setSingleShot(true);
     connect(tableRefreshTimer_, &QTimer::timeout, this, [this]() {
-        if (tableSyncInProgress_) {
+        if (tableSyncInProgress_ || rehighlightInProgress_) {
             tableRefreshTimer_->start(tableRefreshDebounceMs_);
             return;
         }
 
+        rehighlightInProgress_ = true;
         tableSyncInProgress_ = true;
         tableRefreshPending_ = false;
         rehighlight();
         tableSyncInProgress_ = false;
+        rehighlightInProgress_ = false;
         lastTableRefreshMs_ = QDateTime::currentMSecsSinceEpoch();
     });
 
@@ -236,6 +238,27 @@ void MdHighlighter::clearComposingPosition()
     clearPreeditRange();
 }
 
+void MdHighlighter::runPendingSetextRefresh()
+{
+    if (!setextRefreshPending_) {
+        return;
+    }
+
+    if (rehighlightInProgress_ || setextSyncInProgress_) {
+        QMetaObject::invokeMethod(this, [this]() {
+            runPendingSetextRefresh();
+        }, Qt::QueuedConnection);
+        return;
+    }
+
+    rehighlightInProgress_ = true;
+    setextSyncInProgress_ = true;
+    setextRefreshPending_ = false;
+    rehighlight();
+    setextSyncInProgress_ = false;
+    rehighlightInProgress_ = false;
+}
+
 void MdHighlighter::highlightBlock(const QString &text)
 {
     // Always restore/classify/save context so incremental block state stays
@@ -259,7 +282,7 @@ void MdHighlighter::highlightBlock(const QString &text)
     const int textLen = static_cast<int>(text.length());
 
     auto queueTableRefresh = [&](bool forceImmediate = false) {
-        if (tableSyncInProgress_ || !tableRefreshTimer_) {
+        if (tableSyncInProgress_ || rehighlightInProgress_ || !tableRefreshTimer_) {
             return;
         }
 
@@ -289,7 +312,10 @@ void MdHighlighter::highlightBlock(const QString &text)
 
     // Setext headings depend on the next line. Queue a single full refresh
     // on potential underline edits to avoid reentrant highlighting crashes.
-    if (!setextSyncInProgress_ && !setextRefreshPending_ && ctx.topState() == BlockState::Normal) {
+    if (!setextSyncInProgress_ &&
+        !setextRefreshPending_ &&
+        !rehighlightInProgress_ &&
+        ctx.topState() == BlockState::Normal) {
         const QTextBlock prevBlock = currentBlock().previous();
         const QTextBlock nextBlock = currentBlock().next();
         const bool currentIsSetextUnderline =
@@ -319,10 +345,7 @@ void MdHighlighter::highlightBlock(const QString &text)
         if (maybeSetextRelated) {
             setextRefreshPending_ = true;
             QMetaObject::invokeMethod(this, [this]() {
-                setextSyncInProgress_ = true;
-                setextRefreshPending_ = false;
-                rehighlight();
-                setextSyncInProgress_ = false;
+                runPendingSetextRefresh();
             }, Qt::QueuedConnection);
         }
     }
