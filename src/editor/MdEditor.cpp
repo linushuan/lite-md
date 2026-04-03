@@ -654,16 +654,35 @@ MdEditor::MdEditor(QWidget *parent)
                     statusStatsTimer_->start();
                 }
             });
+        focusHighlightTimer_ = new QTimer(this);
+        focusHighlightTimer_->setSingleShot(true);
+        focusHighlightTimer_->setInterval(16);
+        connect(focusHighlightTimer_, &QTimer::timeout,
+            this, &MdEditor::highlightCurrentLine);
 
     // Connect signals for line number area
     connect(this, &QPlainTextEdit::blockCountChanged,
             this, &MdEditor::updateLineNumberAreaWidth);
     connect(this, &QPlainTextEdit::updateRequest,
             this, &MdEditor::updateLineNumberArea);
+    connect(this, &QPlainTextEdit::updateRequest,
+            this, [this](const QRect &, int dy) {
+                if (focusModeEnabled_ && dy != 0) {
+                    scheduleCurrentLineHighlight();
+                }
+            });
+    connect(verticalScrollBar(), &QScrollBar::valueChanged,
+            this, [this](int) {
+                if (focusModeEnabled_) {
+                    scheduleCurrentLineHighlight();
+                }
+            });
 
     // Current line highlight
     connect(this, &QPlainTextEdit::cursorPositionChanged,
-            this, &MdEditor::highlightCurrentLine);
+            this, [this]() {
+                scheduleCurrentLineHighlight();
+            });
     connect(this, &QPlainTextEdit::cursorPositionChanged,
             this, &MdEditor::updateStatusStats);
 
@@ -680,7 +699,7 @@ MdEditor::MdEditor(QWidget *parent)
     lineNumberFg_ = theme.lineNumberFg;
     lineNumberBg_ = theme.lineNumberBg;
     lastHighlightedBlock_ = -1;
-    highlightCurrentLine();
+    scheduleCurrentLineHighlight(true);
 
     // Apply configured font and editor behavior.
     applyEditorFont(settings.fontFamily, settings.fontSize);
@@ -1363,7 +1382,7 @@ void MdEditor::setFocusModeEnabled(bool enabled)
         return;
 
     focusModeEnabled_ = enabled;
-    highlightCurrentLine();
+    scheduleCurrentLineHighlight(true);
 }
 
 bool MdEditor::isFocusModeEnabled() const
@@ -1412,7 +1431,7 @@ void MdEditor::setThemeName(const QString &themeName)
     lineNumberBg_ = theme.lineNumberBg;
     lineNumberArea_->update();
     lastHighlightedBlock_ = -1;
-    highlightCurrentLine();
+    scheduleCurrentLineHighlight(true);
     viewport()->update();
 }
 
@@ -1736,6 +1755,21 @@ void MdEditor::updateLineNumberArea(const QRect &rect, int dy)
         updateLineNumberAreaWidth(0);
 }
 
+void MdEditor::scheduleCurrentLineHighlight(bool immediate)
+{
+    if (!focusModeEnabled_ || immediate) {
+        if (focusHighlightTimer_) {
+            focusHighlightTimer_->stop();
+        }
+        highlightCurrentLine();
+        return;
+    }
+
+    if (focusHighlightTimer_ && !focusHighlightTimer_->isActive()) {
+        focusHighlightTimer_->start();
+    }
+}
+
 void MdEditor::highlightCurrentLine()
 {
     const QTextCursor cursor = textCursor();
@@ -1801,8 +1835,6 @@ void MdEditor::updateStatusStats()
     if (cachedDocRevision_ != document()->revision() && statusStatsTimer_) {
         statusStatsTimer_->start();
     }
-
-    emitWordCountIfChanged();
 }
 
 void MdEditor::recomputeWordCountStats()

@@ -85,6 +85,7 @@ private:
     QColor          lineNumberFg_ = QColor("#585b70");
     QColor          lineNumberBg_ = QColor("#1e1e2e");
     QTimer         *statusStatsTimer_ = nullptr;
+    QTimer         *focusHighlightTimer_ = nullptr;
 
     bool handleAutoCloseKey(QKeyEvent *event);
     bool handleBackspaceKey(QKeyEvent *event);
@@ -98,6 +99,7 @@ private:
 
     void updateLineNumberAreaWidth(int newBlockCount);
     void updateLineNumberArea(const QRect &rect, int dy);
+    void scheduleCurrentLineHighlight(bool immediate = false);
     void highlightCurrentLine();
     void updateStatusStats();
     void recomputeWordCountStats();

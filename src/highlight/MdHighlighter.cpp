@@ -263,6 +263,14 @@ void MdHighlighter::highlightBlock(const QString &text)
             return;
         }
 
+        if (tableRefreshPending_ && tableRefreshTimer_->isActive()) {
+            // Keep only one queued refresh; upgrade to immediate when needed.
+            if (forceImmediate && tableRefreshTimer_->remainingTime() > 0) {
+                tableRefreshTimer_->start(0);
+            }
+            return;
+        }
+
         int delayMs = 0;
         if (!forceImmediate) {
             const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
@@ -312,9 +320,9 @@ void MdHighlighter::highlightBlock(const QString &text)
             setextRefreshPending_ = true;
             QMetaObject::invokeMethod(this, [this]() {
                 setextSyncInProgress_ = true;
+                setextRefreshPending_ = false;
                 rehighlight();
                 setextSyncInProgress_ = false;
-                setextRefreshPending_ = false;
             }, Qt::QueuedConnection);
         }
     }
