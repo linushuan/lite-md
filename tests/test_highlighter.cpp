@@ -789,7 +789,7 @@ private slots:
         QCOMPARE(restoredContentFmt.foreground().color(), theme.boldFg);
     }
 
-    void testPreeditRangeDoesNotMutateCommittedFormats()
+    void testPreeditRangeAppliesComposingUnderlineAndKeepsAdjacentFormats()
     {
         const Theme theme = Theme::darkDefault();
         QTextDocument doc;
@@ -815,8 +815,13 @@ private slots:
         QVERIFY(markerFmt.isValid());
         QVERIFY(preeditFmt.isValid());
         QVERIFY(nextFmt.isValid());
+        // Anchor char uses neutral foreground (not markerFg) to prevent style bleed.
         QCOMPARE(markerFmt.foreground().color(), theme.foreground);
-        QCOMPARE(preeditFmt.foreground().color(), theme.boldFg);
+        // Preedit chars get composing underline with neutral foreground.
+        QCOMPARE(preeditFmt.foreground().color(), theme.foreground);
+        QVERIFY(preeditFmt.fontUnderline());
+        QCOMPARE(preeditFmt.underlineStyle(), QTextCharFormat::DashUnderline);
+        // Char after preedit is untouched.
         QCOMPARE(nextFmt.foreground().color(), theme.boldFg);
 
         highlighter.clearPreeditRange();

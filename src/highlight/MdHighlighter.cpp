@@ -573,7 +573,7 @@ void MdHighlighter::highlightBlock(const QString &text)
         if (preeditBlockNumber_ != currentBlock().blockNumber()) {
             return;
         }
-        if (preeditStartInBlock_ <= 0 || preeditStartInBlock_ > textLen) {
+        if (preeditStartInBlock_ < 0) {
             return;
         }
 
@@ -584,13 +584,32 @@ void MdHighlighter::highlightBlock(const QString &text)
         cleanFmt.setFontUnderline(false);
         cleanFmt.setFontStrikeOut(false);
         cleanFmt.setVerticalAlignment(QTextCharFormat::AlignNormal);
-        // Neutral anchor: prevents highlight style from bleeding into the IME
-        // composition overlay. Do not add underline here — it would visually
-        // corrupt the character before the composing text.
         cleanFmt.setUnderlineStyle(QTextCharFormat::NoUnderline);
 
-        // Use previous real character as preedit base source for Qt merge.
-        setFormat(preeditStartInBlock_ - 1, 1, cleanFmt);
+        // Neutral anchor before preedit prevents highlight style from bleeding
+        // into the IME overlay. No underline on the anchor — putting one here
+        // visually corrupts the character before the composing text.
+        if (preeditStartInBlock_ > 0 && preeditStartInBlock_ <= textLen) {
+            setFormat(preeditStartInBlock_ - 1, 1, cleanFmt);
+        }
+
+        // Apply the composing underline directly to the preedit char range so
+        // the text stays visually distinguishable on platforms where the IME
+        // overlay alone is insufficient.
+        if (preeditLength_ > 0) {
+            const int preeditEnd = qMin(preeditStartInBlock_ + preeditLength_, textLen);
+            if (preeditEnd > preeditStartInBlock_) {
+                QTextCharFormat preeditFmt;
+                preeditFmt.setForeground(theme_.foreground);
+                preeditFmt.setFontWeight(QFont::Normal);
+                preeditFmt.setFontItalic(false);
+                preeditFmt.setFontStrikeOut(false);
+                preeditFmt.setVerticalAlignment(QTextCharFormat::AlignNormal);
+                preeditFmt.setUnderlineStyle(QTextCharFormat::DashUnderline);
+                preeditFmt.setUnderlineColor(theme_.foreground);
+                setFormat(preeditStartInBlock_, preeditEnd - preeditStartInBlock_, preeditFmt);
+            }
+        }
     };
 
     if (blockType == BlockType::BlankLine) {
